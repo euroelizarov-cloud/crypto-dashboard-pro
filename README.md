@@ -1,0 +1,153 @@
+# 📊 Crypto Dashboard Pro
+
+Modern real-time cryptocurrency dashboard built with Qt6 and C++. Features advanced speedometer-style visualizations with multiple themes and customizable displays.
+
+## ✨ Features
+
+### 🎛️ **Advanced Speedometer Styles**
+- **Classic** - Traditional speedometer with red needle tip
+- **NeonGlow** - Futuristic neon lighting effects
+- **Minimal** - Clean minimalist design
+- **ModernTicks** - Contemporary tick marks
+- **Classic Pro** - Professional traditional style with detailed markings
+- **Gauge** - Clean gauge with value indicators
+- **Modern Scale** - Contemporary linear-style scale design
+
+### 🎨 **Rich Color Themes (15+ themes)**
+- **Dark** - Classic dark theme
+- **Light** - Clean light theme
+- **Blue/Green/Purple/Orange/Red** - Colorful variants
+- **Cyber/Ocean/Forest** - Atmospheric themes
+- **Tokyo Night** - Dark theme with purple-pink accents
+- **Cyberpunk** - Neon blue and purple colors
+- **Pastel** - Soft pastel tones
+- **Retro** - Vintage orange-brown colors
+- **Minimal White** - Pure white minimalism
+
+### ⚙️ **Smart Auto-Scaling**
+- **Adaptive** - Automatic scaling based on data range
+- **Fixed (0-100)** - Fixed percentage range
+- **Manual** - Custom min/max bounds
+- **Per-widget** - Individual scaling per cryptocurrency
+
+### 🔧 **Advanced Features**
+- **Real-time WebSocket** connection to Binance API
+- **Per-widget customization** - Individual styles and settings
+- **Threshold highlighting** - Color-coded warning zones
+- **Performance monitoring** - Built-in profiling and optimization
+- **Persistent settings** - All customizations saved automatically
+- **Context menus** - Right-click for quick style changes
+- **Memory management** - Configurable cache limits and data retention
+
+## 🚀 **Live Data Support**
+- **12 Cryptocurrencies**: BTC, ETH, XRP, BNB, SOL, DOGE, XLM, HBAR, APT, TAO, LAYER, TON
+- **Real-time updates** from Binance Stream API
+- **Trade/Ticker modes** with automatic fallback
+- **Performance metrics** showing update rates
+
+## 🛠️ **Technical Stack**
+- **Qt6** (Core, GUI, Widgets, WebSockets, Charts)
+- **C++17** with modern features
+- **CMake/Ninja** build system
+- **QSettings** for configuration persistence
+- **Modular architecture** with clean separation
+
+## 📦 **Project Structure**
+```
+dashboard/
+├── modular_dashboard/           # Main application
+│   ├── include/                # Header files
+│   │   ├── MainWindow.h
+│   │   ├── DynamicSpeedometerCharts.h
+│   │   ├── ThemeManager.h
+│   │   └── DataWorker.h
+│   └── src/                    # Implementation files
+│       ├── main.cpp
+│       ├── MainWindow.cpp
+│       ├── DynamicSpeedometerCharts.cpp
+│       ├── ThemeManager.cpp
+│       └── DataWorker.cpp
+├── CMakeLists.txt              # Build configuration
+└── build/                      # Build output (ignored)
+```
+
+## 🔨 **Building**
+
+### Prerequisites
+- Qt6 (with WebSockets and Charts modules)
+- CMake 3.16+
+- Modern C++ compiler (C++17 support)
+
+### Build Steps
+```bash
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . --target modular_dashboard -j8
+```
+
+### Run
+```bash
+./build/Qt_6_9_1_for_macOS-Debug/modular_dashboard/modular_dashboard.app/Contents/MacOS/modular_dashboard
+```
+
+## 🎯 **Usage**
+
+### Basic Operation
+1. **Launch** the application
+2. **Wait** for WebSocket connection to Binance
+3. **Watch** real-time cryptocurrency data updates
+4. **Customize** styles via Settings menu or right-click context menus
+
+### Customization
+- **Global Styles**: Settings → Speedometer Style
+- **Per-Widget**: Right-click any speedometer → Choose style
+- **Themes**: Settings → Theme
+- **Auto-scaling**: Settings → Auto-scaling
+- **Thresholds**: Settings → Thresholds
+
+### Performance Tuning
+- **Animation timing**: Settings → Performance → Animation delays
+- **Cache limits**: Settings → Performance → Memory limits
+- **Data retention**: Settings → Performance → History size
+
+## 🔍 **Architecture Highlights**
+
+### Modular Design
+- **MainWindow**: Application orchestration and UI management
+- **DynamicSpeedometerCharts**: Individual speedometer widgets with multiple styles
+- **ThemeManager**: Centralized theme and color management
+- **DataWorker**: Background WebSocket data handling with threading
+
+### Key Design Patterns
+- **Strategy Pattern**: Multiple speedometer rendering styles
+- **Observer Pattern**: Real-time data updates
+- **Factory Pattern**: Theme and color scheme creation
+- **Command Pattern**: Settings persistence and restoration
+
+### Performance Optimizations
+- **Efficient painting**: Optimized QPainter usage for smooth animations
+- **Memory management**: Configurable cache limits and data circular buffers
+- **Threading**: Background data processing with Qt's signal-slot system
+- **Resource pooling**: Reusable painter objects and brush caching
+
+## 📈 **Development Timeline**
+- ✅ **Phase 1**: Basic dashboard with Qt Charts integration
+- ✅ **Phase 2**: Custom speedometer visualizations
+- ✅ **Phase 3**: Multiple styles and themes
+- ✅ **Phase 4**: Advanced customization and scaling
+- ✅ **Phase 5**: Performance optimization and polish
+
+## 🤝 **Contributing**
+This is a personal project showcasing modern Qt development practices. Feel free to explore the code and adapt it for your own projects.
+
+## 📄 **License**
+Private project - All rights reserved.
+
+## 🙏 **Acknowledgments**
+- **Binance API** for real-time cryptocurrency data
+- **Qt Framework** for excellent cross-platform development tools
+- **Modern C++** community for best practices and patterns
+
+---
+*Built with ❤️ and Qt6*
