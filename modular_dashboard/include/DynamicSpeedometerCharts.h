@@ -46,6 +46,8 @@ public:
         if (!history.empty()) { updateBounds(history.back().second); }
         if (modeView=="speedometer") update();
     }
+    // Runtime tuning for Python-like scaling behavior
+    void setPythonScalingParams(double initSpanPct, double minCompress, double maxCompress, double minWidthPct);
     void setSpeedometerColors(const QColor& primary, const QColor& secondary, const QColor& text, const QColor& background) {
         themeColors.zoneGood = primary; themeColors.arcBase = secondary; themeColors.text = text; themeColors.background = background;
         if (modeView=="speedometer") update();

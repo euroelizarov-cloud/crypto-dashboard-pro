@@ -47,6 +47,15 @@ DynamicSpeedometerCharts::DynamicSpeedometerCharts(const QString& cur, QWidget* 
     connect(cacheUpdateTimer, &QTimer::timeout, this, &DynamicSpeedometerCharts::cacheChartData); cacheUpdateTimer->start();
 }
 
+void DynamicSpeedometerCharts::setPythonScalingParams(double initSpanPct, double minCompress, double maxCompress, double minWidthPct) {
+    pyInitSpanPct = std::clamp(initSpanPct, 1e-6, 0.5); // 0.000001..0.5 (50%)
+    pyMinCompress = std::max(1.0, minCompress);         // >= 1.0
+    pyMaxCompress = std::min(1.0, std::max(0.0, maxCompress)); // <= 1.0
+    pyMinWidthPct = std::clamp(minWidthPct, 1e-8, 1.0);
+    // Recompute bounds using latest price
+    if (!history.empty()) updateBounds(history.back().second);
+}
+
 void DynamicSpeedometerCharts::applyPerformance(int animMs, int renderMs, int cacheMs, int volWindowSize, int maxPts, int rawCacheSize) {
     animation->setDuration(animMs); renderTimer->setInterval(std::max(1, renderMs)); cacheUpdateTimer->setInterval(std::max(10, cacheMs));
     volatilityWindow = volWindowSize; maxPoints = maxPts; setRawCacheSize(rawCacheSize); cacheChartData(); update();
@@ -161,6 +170,34 @@ void DynamicSpeedometerCharts::updateBounds(double price) {
         if (price < cachedMinVal.value()) cachedMinVal = price;
         if (price > cachedMaxVal.value()) cachedMaxVal = price; return;
     }
+    if (scaling.mode == ScalingMode::PythonLike) {
+        // Initialize around price with ±pyInitSpanPct
+        if (!cachedMinVal || !cachedMaxVal) {
+            cachedMinVal = price * (1.0 - pyInitSpanPct);
+            cachedMaxVal = price * (1.0 + pyInitSpanPct);
+            return;
+        }
+        // Compress bounds slightly every tick
+        cachedMinVal = cachedMinVal.value() * pyMinCompress;
+        cachedMaxVal = cachedMaxVal.value() * pyMaxCompress;
+        // Enforce minimal width relative to current price
+        double minWidth = std::max(1e-10, std::abs(price) * pyMinWidthPct);
+        // If price breaks out, expand boundary just beyond price so price is inside range
+        if (price < cachedMinVal.value()) {
+            cachedMinVal = price - 0.5 * minWidth;
+        }
+        if (price > cachedMaxVal.value()) {
+            cachedMaxVal = price + 0.5 * minWidth;
+        }
+        // Ensure final width >= minWidth; if too narrow, recenter around price
+        double range = cachedMaxVal.value() - cachedMinVal.value();
+        if (range < minWidth) {
+            double center = price;
+            cachedMinVal = center - minWidth/2.0;
+            cachedMaxVal = center + minWidth/2.0;
+        }
+        return;
+    }
     // Adaptive mode (default)
     if (!cachedMinVal || !cachedMaxVal) { cachedMinVal=price*minInit; cachedMaxVal=price*maxInit; return; }
     cachedMinVal = cachedMinVal.value()*minFactor + price*(1.0-minFactor);
@@ -228,11 +265,16 @@ void DynamicSpeedometerCharts::drawSpeedometer(QPainter& painter) {
             break;
         }
         case SpeedometerStyle::ModernTicks: {
-            painter.setPen(QPen(themeColors.arcBase, 2)); painter.drawArc(rect, 45*16, 270*16);
+            // Use theme colors for tick accents
+            painter.setPen(QPen(themeColors.zoneGood, 2)); painter.drawArc(rect, 45*16, 90*16);
+            painter.setPen(QPen(themeColors.zoneWarn, 2)); painter.drawArc(rect, (45+90)*16, 90*16);
+            painter.setPen(QPen(themeColors.zoneDanger, 2)); painter.drawArc(rect, (45+180)*16, 90*16);
             painter.save(); painter.translate(w/2,h/2);
             for (int v=0; v<=100; v+=10) {
                 painter.save(); double a = 45 + 270.0*v/100.0; painter.rotate(a);
-                int len = (v%20==0) ? 16 : 8; int t = size/2 - 10; painter.setPen(QPen(themeColors.arcBase.lighter(), (v%20==0)?3:1)); painter.drawLine(t-len,0,t,0);
+                int len = (v%20==0) ? 16 : 8; int t = size/2 - 10; 
+                QColor tickColor = (v<33) ? themeColors.zoneGood : (v<66 ? themeColors.zoneWarn : themeColors.zoneDanger);
+                painter.setPen(QPen(tickColor, (v%20==0)?3:1)); painter.drawLine(t-len,0,t,0);
                 painter.restore();
             }
             painter.restore();
@@ -309,17 +351,19 @@ void DynamicSpeedometerCharts::drawSpeedometer(QPainter& painter) {
             break;
         }
         case SpeedometerStyle::Gauge: {
-            // Clean gauge with single arc and value indicator
-            painter.setPen(QPen(themeColors.arcBase, 3)); painter.drawArc(rect.adjusted(5,5,-5,-5), 45*16, 270*16);
+            // Clean gauge with multi-color arc and value indicator
+            painter.setPen(QPen(themeColors.zoneGood, 4)); painter.drawArc(rect.adjusted(5,5,-5,-5), 45*16, 110*16);
+            painter.setPen(QPen(themeColors.zoneWarn, 4)); painter.drawArc(rect.adjusted(5,5,-5,-5), (45+110)*16, 80*16);
+            painter.setPen(QPen(themeColors.zoneDanger, 4)); painter.drawArc(rect.adjusted(5,5,-5,-5), (45+190)*16, 80*16);
             // Value indicator line at current position
-            QColor indicatorColor = (!thresholds.enabled)? themeColors.needleNormal : (_value>=thresholds.danger? themeColors.zoneDanger : (_value>=thresholds.warn? themeColors.zoneWarn : themeColors.zoneGood));
+            QColor indicatorColor = (!thresholds.enabled)? themeColors.glow : (_value>=thresholds.danger? themeColors.zoneDanger : (_value>=thresholds.warn? themeColors.zoneWarn : themeColors.zoneGood));
             painter.setPen(QPen(indicatorColor, 6, Qt::SolidLine, Qt::RoundCap));
             double indicatorAngle = 45 + (270 * _value / 100);
             painter.save(); painter.translate(w/2, h/2); painter.rotate(indicatorAngle);
             int startR = size/2 - 25, endR = size/2 - 10;
             painter.drawLine(startR, 0, endR, 0); painter.restore();
             // Optional: small value marks
-            painter.setPen(QPen(themeColors.arcBase.lighter(), 1));
+            painter.setPen(QPen(themeColors.text.lighter(), 1));
             for (int v=0; v<=100; v+=25) {
                 painter.save(); painter.translate(w/2, h/2); double a = 45 + 270.0*v/100.0; painter.rotate(a);
                 int t = size/2 - 8; painter.drawLine(t-4,0,t,0); painter.restore();

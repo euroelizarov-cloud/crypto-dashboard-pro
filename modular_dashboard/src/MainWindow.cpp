@@ -6,6 +6,7 @@
 #include <QDialog>
 #include <QFormLayout>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QDialogButtonBox>
 #include <QInputDialog>
 #include <QSettings>
@@ -18,7 +19,8 @@ class PerformanceConfigDialog : public QDialog {
     Q_OBJECT
 public:
     PerformanceConfigDialog(QWidget* parent,
-                            int animMsInit,int renderMsInit,int cacheMsInit,int volWindowInit,int maxPtsInit,int rawCacheInit)
+                            int animMsInit,int renderMsInit,int cacheMsInit,int volWindowInit,int maxPtsInit,int rawCacheInit,
+                            double pyInitSpanPctInit, double pyMinCompressInit, double pyMaxCompressInit, double pyMinWidthPctInit)
                             : QDialog(parent) {
         setWindowTitle("Performance Settings");
         auto* layout = new QFormLayout(this);
@@ -28,12 +30,21 @@ public:
         volWindow = new QSpinBox(); volWindow->setRange(10,20000); volWindow->setValue(volWindowInit);
         maxPts = new QSpinBox(); maxPts->setRange(100,20000); maxPts->setValue(maxPtsInit);
         rawCache = new QSpinBox(); rawCache->setRange(1000,500000); rawCache->setValue(rawCacheInit);
+        // Python-like scaling controls
+        pyInitSpanPct = new QDoubleSpinBox(); pyInitSpanPct->setRange(0.000001, 0.5); pyInitSpanPct->setDecimals(6); pyInitSpanPct->setSingleStep(0.0005); pyInitSpanPct->setValue(pyInitSpanPctInit);
+        pyMinCompress = new QDoubleSpinBox(); pyMinCompress->setRange(1.0, 1.01); pyMinCompress->setDecimals(6); pyMinCompress->setSingleStep(0.000001); pyMinCompress->setValue(pyMinCompressInit);
+        pyMaxCompress = new QDoubleSpinBox(); pyMaxCompress->setRange(0.99, 1.0); pyMaxCompress->setDecimals(6); pyMaxCompress->setSingleStep(0.000001); pyMaxCompress->setValue(pyMaxCompressInit);
+        pyMinWidthPct = new QDoubleSpinBox(); pyMinWidthPct->setRange(0.00000001, 0.01); pyMinWidthPct->setDecimals(8); pyMinWidthPct->setSingleStep(0.0000005); pyMinWidthPct->setValue(pyMinWidthPctInit);
         layout->addRow("Animation (ms)", animMs);
         layout->addRow("Render interval (ms)", renderMs);
         layout->addRow("Cache update (ms)", cacheMs);
         layout->addRow("Volatility window", volWindow);
         layout->addRow("Max chart points", maxPts);
         layout->addRow("Raw cache size", rawCache);
+        layout->addRow("Python init span (±pct)", pyInitSpanPct);
+        layout->addRow("Python min compress (×)", pyMinCompress);
+        layout->addRow("Python max compress (×)", pyMaxCompress);
+        layout->addRow("Python min width (pct)", pyMinWidthPct);
         auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
         connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
         connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -45,8 +56,13 @@ public:
     int volatilityWindowSize() const { return volWindow->value(); }
     int maxPointsCount() const { return maxPts->value(); }
     int rawCacheSize() const { return rawCache->value(); }
+    double pyInitSpanPctVal() const { return pyInitSpanPct->value(); }
+    double pyMinCompressVal() const { return pyMinCompress->value(); }
+    double pyMaxCompressVal() const { return pyMaxCompress->value(); }
+    double pyMinWidthPctVal() const { return pyMinWidthPct->value(); }
 private:
     QSpinBox *animMs, *renderMs, *cacheMs, *volWindow, *maxPts, *rawCache;
+    QDoubleSpinBox *pyInitSpanPct, *pyMinCompress, *pyMaxCompress, *pyMinWidthPct;
 };
 
 MainWindow::MainWindow() {
@@ -74,7 +90,25 @@ MainWindow::MainWindow() {
 
     auto* settingsMenu = menuBar()->addMenu("Settings");
     auto* perfAct = settingsMenu->addAction("Performance..."); connect(perfAct, &QAction::triggered, this, &MainWindow::openPerformanceDialog);
-    auto* themeAct = settingsMenu->addAction("Theme..."); connect(themeAct, &QAction::triggered, this, &MainWindow::openThemeDialog);
+    // Theme submenu with live apply
+    QMenu* themeMenu = settingsMenu->addMenu("Theme");
+    QActionGroup* themeGroup = new QActionGroup(this); themeGroup->setExclusive(true);
+    {
+        QStringList names = themeManager->themeNames();
+        QString currentName = themeManager->current().name;
+        for (const auto& n : names) {
+            QAction* a = themeMenu->addAction(n);
+            a->setCheckable(true);
+            if (n == currentName) a->setChecked(true);
+            themeGroup->addAction(a);
+            connect(a, &QAction::triggered, this, [this, n]() {
+                applyTheme(n);
+                QSettings st("alel12", "modular_dashboard");
+                st.setValue("ui/themeName", n);
+                st.sync();
+            });
+        }
+    }
     // Speedometer style submenu (7 variants)
     auto* styleMenu = settingsMenu->addMenu("Speedometer Style");
     QActionGroup* styleGroup = new QActionGroup(this); styleGroup->setExclusive(true);
@@ -156,6 +190,7 @@ MainWindow::MainWindow() {
     QAction* adaptiveScaling = scalingMenu->addAction("Adaptive (default)"); adaptiveScaling->setCheckable(true); adaptiveScaling->setChecked(true); scalingGroup->addAction(adaptiveScaling);
     QAction* fixedScaling = scalingMenu->addAction("Fixed range (0-100)"); fixedScaling->setCheckable(true); scalingGroup->addAction(fixedScaling);
     QAction* manualScaling = scalingMenu->addAction("Manual bounds"); manualScaling->setCheckable(true); scalingGroup->addAction(manualScaling);
+    QAction* pythonScaling = scalingMenu->addAction("Python-like (compressing window)"); pythonScaling->setCheckable(true); scalingGroup->addAction(pythonScaling);
     auto applyScalingMode = [this](DynamicSpeedometerCharts::ScalingMode mode, double minVal = 0.0, double maxVal = 100.0){
         DynamicSpeedometerCharts::ScalingSettings s; s.mode = mode; s.fixedMin = minVal; s.fixedMax = maxVal;
         for (auto* w : widgets) w->applyScaling(s);
@@ -165,6 +200,21 @@ MainWindow::MainWindow() {
     connect(adaptiveScaling, &QAction::triggered, this, [applyScalingMode](){ applyScalingMode(DynamicSpeedometerCharts::ScalingMode::Adaptive); });
     connect(fixedScaling, &QAction::triggered, this, [applyScalingMode](){ applyScalingMode(DynamicSpeedometerCharts::ScalingMode::Fixed, 0.0, 100.0); });
     connect(manualScaling, &QAction::triggered, this, [applyScalingMode](){ applyScalingMode(DynamicSpeedometerCharts::ScalingMode::Manual); });
+    connect(pythonScaling, &QAction::triggered, this, [applyScalingMode](){ applyScalingMode(DynamicSpeedometerCharts::ScalingMode::PythonLike); });
+    // Load saved scaling mode, reflect in menu and apply
+    {
+        QSettings st("alel12", "modular_dashboard");
+        auto mode = static_cast<DynamicSpeedometerCharts::ScalingMode>(st.value("ui/scaling/mode", int(DynamicSpeedometerCharts::ScalingMode::Adaptive)).toInt());
+        double minVal = st.value("ui/scaling/min", 0.0).toDouble();
+        double maxVal = st.value("ui/scaling/max", 100.0).toDouble();
+        switch (mode) {
+            case DynamicSpeedometerCharts::ScalingMode::Adaptive: adaptiveScaling->setChecked(true); break;
+            case DynamicSpeedometerCharts::ScalingMode::Fixed: fixedScaling->setChecked(true); break;
+            case DynamicSpeedometerCharts::ScalingMode::Manual: manualScaling->setChecked(true); break;
+            case DynamicSpeedometerCharts::ScalingMode::PythonLike: pythonScaling->setChecked(true); break;
+        }
+        applyScalingMode(mode, minVal, maxVal);
+    }
 
     // Data worker thread (default to TICKER mode by settings)
     // Read default stream mode
@@ -231,11 +281,26 @@ void MainWindow::switchMode(StreamMode m) {
 
 void MainWindow::openPerformanceDialog() {
     auto s = readPerfSettings();
-    PerformanceConfigDialog dlg(this, s.animMs, s.renderMs, s.cacheMs, s.volWindow, s.maxPts, s.rawCache);
+    // Read python-like params from settings
+    QSettings st("alel12", "modular_dashboard");
+    double pyInitSpan = st.value("perf/pyInitSpanPct", 0.005).toDouble();
+    double pyMinComp  = st.value("perf/pyMinCompress", 1.000001).toDouble();
+    double pyMaxComp  = st.value("perf/pyMaxCompress", 0.999999).toDouble();
+    double pyMinWidth = st.value("perf/pyMinWidthPct", 0.0001).toDouble();
+    PerformanceConfigDialog dlg(this, s.animMs, s.renderMs, s.cacheMs, s.volWindow, s.maxPts, s.rawCache,
+                                pyInitSpan, pyMinComp, pyMaxComp, pyMinWidth);
     if (dlg.exec()==QDialog::Accepted) {
         PerfSettings ns{dlg.animationMs(), dlg.renderIntervalMs(), dlg.cacheIntervalMs(), dlg.volatilityWindowSize(), dlg.maxPointsCount(), dlg.rawCacheSize()};
         writePerfSettings(ns);
+        // Save python-like params
+        st.setValue("perf/pyInitSpanPct", dlg.pyInitSpanPctVal());
+        st.setValue("perf/pyMinCompress", dlg.pyMinCompressVal());
+        st.setValue("perf/pyMaxCompress", dlg.pyMaxCompressVal());
+        st.setValue("perf/pyMinWidthPct", dlg.pyMinWidthPctVal());
+        st.sync();
         for (auto* w : widgets) w->applyPerformance(ns.animMs, ns.renderMs, ns.cacheMs, ns.volWindow, ns.maxPts, ns.rawCache);
+        // Apply python-like params live
+        for (auto* w : widgets) w->setPythonScalingParams(dlg.pyInitSpanPctVal(), dlg.pyMinCompressVal(), dlg.pyMaxCompressVal(), dlg.pyMinWidthPctVal());
     }
 }
 
@@ -305,7 +370,11 @@ void MainWindow::loadSettingsAndApply() {
     
     // Initialize theme settings
     QSettings st("alel12", "modular_dashboard");
-    if (st.contains("ui/theme")) {
+    // Prefer stored theme name if present
+    QString themeName = st.value("ui/themeName").toString();
+    if (!themeName.isEmpty()) {
+        applyTheme(themeName);
+    } else if (st.contains("ui/theme")) {
         auto theme = static_cast<ThemeManager::ColorTheme>(st.value("ui/theme").toInt());
         themeManager->setTheme(theme);
         onThemeChanged(theme);
@@ -316,15 +385,14 @@ void MainWindow::loadSettingsAndApply() {
     double warnVal = st.value("ui/thresholds/warn", 70.0).toDouble();
     double dangerVal = st.value("ui/thresholds/danger", 85.0).toDouble();
     applyThresholdsToAll(thrEnabled, warnVal, dangerVal);
+    // Apply saved python-like params
+    double pyInitSpan = st.value("perf/pyInitSpanPct", 0.005).toDouble();
+    double pyMinComp  = st.value("perf/pyMinCompress", 1.000001).toDouble();
+    double pyMaxComp  = st.value("perf/pyMaxCompress", 0.999999).toDouble();
+    double pyMinWidth = st.value("perf/pyMinWidthPct", 0.0001).toDouble();
+    for (auto* w : widgets) w->setPythonScalingParams(pyInitSpan, pyMinComp, pyMaxComp, pyMinWidth);
     
-    // Apply saved scaling mode
-    if (st.contains("ui/scaling/mode")) {
-        DynamicSpeedometerCharts::ScalingMode mode = static_cast<DynamicSpeedometerCharts::ScalingMode>(st.value("ui/scaling/mode").toInt());
-        double minVal = st.value("ui/scaling/min", 0.0).toDouble();
-        double maxVal = st.value("ui/scaling/max", 100.0).toDouble();
-        DynamicSpeedometerCharts::ScalingSettings s; s.mode = mode; s.fixedMin = minVal; s.fixedMax = maxVal;
-        for (auto* w : widgets) w->applyScaling(s);
-    }
+    // Apply saved scaling mode to widgets handled in constructor when actions exist
 }
 
 QStringList MainWindow::readCurrenciesSettings() {
