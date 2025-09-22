@@ -1,4 +1,5 @@
-# 📊 Crypto Dashboard Pro
+# 📊 Crypto Dashboard Pro  
+[![Latest Release](https://img.shields.io/github/v/release/euroelizarov-cloud/crypto-dashboard-pro?sort=semver&label=latest)](https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/latest)
 
 Modern real-time cryptocurrency dashboard built with Qt6 and C++. Features advanced speedometer-style visualizations with multiple themes and customizable displays.
 
@@ -70,6 +71,10 @@ dashboard/
 ├── CMakeLists.txt              # Build configuration
 └── build/                      # Build output (ignored)
 ```
+
+## ⬇️ Download
+
+- macOS app (v0.3.0): https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/download/v0.3.0/modular_dashboard-v0.3.0-macos.zip
 
 ## 🔨 **Building**
 

@@ -221,6 +221,28 @@ void DynamicSpeedometerCharts::drawSpeedometer(QPainter& painter) {
         if (!history.empty()) { double currentPrice = history.back().second; painter.setFont(QFont("Arial",21, QFont::Bold)); painter.drawText(QRect(0,h/2+20,w,20), Qt::AlignCenter, QLocale().toString(currentPrice,'f',3)); }
         painter.setFont(QFont("Arial",8)); painter.setPen(Qt::yellow); painter.drawText(QRect(1,h-50,w-10,20), Qt::AlignLeft|Qt::AlignBottom, QString("Trades: %1").arg(history.size()));
         painter.setFont(QFont("Arial",6)); painter.setPen(textColor); painter.drawText(QRect(1,1,w-10,20), Qt::AlignLeft|Qt::AlignTop, QString("Volatility: %1%\n").arg(volatility,0,'f',4));
+        // market/provider badge top-right (auto-sized narrower)
+        if (!providerName.isEmpty()) {
+            QString badge = marketName.isEmpty() ? providerName : providerName + " • " + marketName;
+            QFont f("Arial", 8, QFont::DemiBold);
+            painter.setFont(f);
+            QFontMetrics fm(f);
+            int textW = fm.horizontalAdvance(badge);
+            int pad = 8;
+            int bw = std::min(std::max(textW + pad*2, 60), w-8);
+            int bx = std::max(4, w - bw - 4);
+            QRect br(bx, 4, bw, 18);
+            painter.setPen(Qt::NoPen); painter.setBrush(QColor(0,0,0,100)); painter.drawRoundedRect(br, 6, 6);
+            painter.setPen(QColor(220,220,220));
+            painter.drawText(br.adjusted(6,0,-6,0), Qt::AlignVCenter|Qt::AlignLeft, badge);
+        }
+        // unsupported banner bottom-right
+        if (!unsupportedMsg.isEmpty()) {
+            QRect wr(w-180, h-26, 176, 20);
+            painter.setPen(Qt::NoPen); painter.setBrush(QColor(255, 140, 0, 160)); painter.drawRoundedRect(wr, 6, 6);
+            painter.setPen(Qt::black); painter.setFont(QFont("Arial", 8, QFont::Bold));
+            painter.drawText(wr.adjusted(6,0,-6,0), Qt::AlignVCenter|Qt::AlignLeft, unsupportedMsg);
+        }
     };
 
     const double angle = 45 + (270 * _value / 100);

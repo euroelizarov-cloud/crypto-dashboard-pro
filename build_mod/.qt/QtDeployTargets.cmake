@@ -1,0 +1,2 @@
+set(__QT_DEPLOY_TARGET_modular_dashboard_FILE /Users/alel12/dashboard/build_mod/modular_dashboard.app/Contents/MacOS/modular_dashboard)
+set(__QT_DEPLOY_TARGET_modular_dashboard_TYPE EXECUTABLE)

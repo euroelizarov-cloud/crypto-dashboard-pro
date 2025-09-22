@@ -56,6 +56,14 @@ public:
         thresholds.enabled = enabled; thresholds.warn = warnValue; thresholds.danger = dangerValue;
         if (modeView=="speedometer") update();
     }
+    // Market badge API
+    void setMarketBadge(const QString& provider, const QString& market) {
+        providerName = provider; marketName = market;
+        setProperty("providerName", providerName);
+        setProperty("marketName", marketName);
+        if (modeView=="speedometer") update();
+    }
+    void setUnsupportedReason(const QString& reason) { unsupportedMsg = reason; if (modeView=="speedometer") update(); }
 signals:
     void valueChanged(double newValue);
     void requestRename(const QString& currentTicker);
@@ -92,4 +100,8 @@ private:
     double pyMinCompress=1.000001;     // min *= 1.000001
     double pyMaxCompress=0.999999;     // max *= 0.999999
     double pyMinWidthPct=0.0001;       // at least price*0.01%
+    // Market badge state
+    QString providerName;
+    QString marketName;
+    QString unsupportedMsg; // non-empty => show warning badge
 };

@@ -87,6 +87,36 @@ MainWindow::MainWindow() {
     auto* modeMenu = menuBar()->addMenu("Mode"); auto* tradeAct = modeMenu->addAction("TRADE stream"); tradeAct->setCheckable(true); tradeAct->setChecked(true);
     auto* tickerAct = modeMenu->addAction("TICKER stream"); tickerAct->setCheckable(true); auto* group = new QActionGroup(this); group->addAction(tradeAct); group->addAction(tickerAct); group->setExclusive(true);
     connect(tradeAct, &QAction::triggered, this, [this](){ switchMode(StreamMode::Trade); }); connect(tickerAct, &QAction::triggered, this, [this](){ switchMode(StreamMode::Ticker); });
+    // Provider menu (Binance/Bybit)
+    QMenu* providerMenu = menuBar()->addMenu("Provider");
+    QActionGroup* providerGroup = new QActionGroup(this); providerGroup->setExclusive(true);
+    QAction* provBinance = providerMenu->addAction("Binance"); provBinance->setCheckable(true);
+    QAction* provBybit   = providerMenu->addAction("Bybit");   provBybit->setCheckable(true);
+    providerGroup->addAction(provBinance); providerGroup->addAction(provBybit);
+    // Load provider from settings
+    {
+        QSettings st("alel12", "modular_dashboard");
+        QString p = st.value("stream/provider", "Binance").toString();
+        if (p.compare("Bybit", Qt::CaseInsensitive)==0) {
+            provBybit->setChecked(true);
+        } else {
+            provBinance->setChecked(true);
+        }
+    }
+    connect(provBinance, &QAction::triggered, this, [this](){
+        QSettings st("alel12", "modular_dashboard"); st.setValue("stream/provider", "Binance"); st.sync();
+        if (dataWorker) {
+            QMetaObject::invokeMethod(dataWorker, "stop", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setProvider(DataProvider::Binance); dataWorker->setMode(streamMode); dataWorker->start(); }, Qt::QueuedConnection);
+        }
+    });
+    connect(provBybit, &QAction::triggered, this, [this](){
+        QSettings st("alel12", "modular_dashboard"); st.setValue("stream/provider", "Bybit"); st.sync();
+        if (dataWorker) {
+            QMetaObject::invokeMethod(dataWorker, "stop", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setProvider(DataProvider::Bybit); dataWorker->setMode(streamMode); dataWorker->start(); }, Qt::QueuedConnection);
+        }
+    });
 
     auto* settingsMenu = menuBar()->addMenu("Settings");
     auto* perfAct = settingsMenu->addAction("Performance..."); connect(perfAct, &QAction::triggered, this, &MainWindow::openPerformanceDialog);
@@ -138,6 +168,41 @@ MainWindow::MainWindow() {
     connect(stCircle,  &QAction::triggered, this, [applyStyleByName](){ applyStyleByName("Classic Pro"); });
     connect(stGauge,   &QAction::triggered, this, [applyStyleByName](){ applyStyleByName("Gauge"); });
     connect(stRing,    &QAction::triggered, this, [applyStyleByName](){ applyStyleByName("Modern Scale"); });
+
+    // Bybit Market Preference
+    QMenu* bybitMenu = settingsMenu->addMenu("Bybit Market Preference");
+    QActionGroup* bybitPrefGroup = new QActionGroup(this); bybitPrefGroup->setExclusive(true);
+    QAction* actLinearFirst = bybitMenu->addAction("Linear → Spot"); actLinearFirst->setCheckable(true);
+    QAction* actSpotFirst   = bybitMenu->addAction("Spot → Linear"); actSpotFirst->setCheckable(true);
+    bybitPrefGroup->addAction(actLinearFirst); bybitPrefGroup->addAction(actSpotFirst);
+    {
+        QSettings st("alel12", "modular_dashboard");
+        QString pref = st.value("bybit/preference", "LinearFirst").toString();
+        bool linearFirst = (pref=="LinearFirst");
+        actLinearFirst->setChecked(linearFirst);
+        actSpotFirst->setChecked(!linearFirst);
+    }
+    auto applyBybitPref = [this](bool linearFirst){
+        QSettings st("alel12", "modular_dashboard"); st.setValue("bybit/preference", linearFirst?"LinearFirst":"SpotFirst"); st.sync();
+        if (dataWorker) {
+            QMetaObject::invokeMethod(dataWorker, [this,linearFirst](){ dataWorker->setBybitPreference(linearFirst?BybitPreference::LinearFirst:BybitPreference::SpotFirst); dataWorker->stop(); dataWorker->start(); }, Qt::QueuedConnection);
+        }
+        // Update badges for all widgets
+        for (auto* w : widgets) w->setMarketBadge("Bybit", linearFirst?"Linear":"Spot");
+    };
+    connect(actLinearFirst, &QAction::triggered, this, [applyBybitPref](){ applyBybitPref(true); });
+    connect(actSpotFirst,   &QAction::triggered, this, [applyBybitPref](){ applyBybitPref(false); });
+
+    // Market map (reference list): which ticker uses which market
+    QAction* actMarketMap = settingsMenu->addAction("Show Market Map...");
+    connect(actMarketMap, &QAction::triggered, this, [this](){
+        QStringList lines; lines << "Ticker  | Provider • Market"; lines << "-----------------------------";
+        for (auto it = widgets.begin(); it != widgets.end(); ++it) {
+            auto* w = it.value();
+            lines << QString("%1  | %2 • %3").arg(it.key(), -6).arg(w->property("providerName").toString(), w->property("marketName").toString());
+        }
+        QInputDialog::getMultiLineText(this, "Market Map", "Current market per ticker:", lines.join('\n'));
+    });
     // Thresholds submenu
     QMenu* thrMenu = settingsMenu->addMenu("Thresholds");
     QAction* thrEnable = thrMenu->addAction("Enable thresholds"); thrEnable->setCheckable(true);
@@ -227,9 +292,31 @@ MainWindow::MainWindow() {
         tickerAct->setChecked(streamMode==StreamMode::Ticker);
         setWindowTitle(QString("Modular Crypto Dashboard — %1").arg(streamMode==StreamMode::Trade?"TRADE":"TICKER"));
     }
-    dataWorker = new DataWorker(); dataWorker->setMode(streamMode); workerThread = new QThread(this); dataWorker->moveToThread(workerThread);
+    dataWorker = new DataWorker(); dataWorker->setMode(streamMode);
+    // Apply saved provider before starting
+    {
+        QSettings st("alel12", "modular_dashboard");
+        QString p = st.value("stream/provider", "Binance").toString();
+        auto provBybit = (p.compare("Bybit", Qt::CaseInsensitive)==0);
+        dataWorker->setProvider(provBybit ? DataProvider::Bybit : DataProvider::Binance);
+        // Apply saved Bybit preference
+        QString pref = st.value("bybit/preference", "LinearFirst").toString();
+        dataWorker->setBybitPreference(pref=="LinearFirst"? BybitPreference::LinearFirst : BybitPreference::SpotFirst);
+        // seed badges
+        const QString initMarket = provBybit ? (pref=="LinearFirst"?"Linear":"Spot") : "";
+        for (auto* w : widgets) w->setMarketBadge(provBybit?"Bybit":"Binance", initMarket);
+    }
+    workerThread = new QThread(this); dataWorker->moveToThread(workerThread);
     connect(workerThread, &QThread::started, dataWorker, &DataWorker::start);
     connect(dataWorker, &DataWorker::dataUpdated, this, &MainWindow::handleData);
+    connect(dataWorker, &DataWorker::dataTick, this, [this](const QString& cur,double price,double ts,const QString& prov,const QString& market){
+        if (widgets.contains(cur)) {
+            widgets[cur]->setMarketBadge(prov, market);
+        }
+    });
+    connect(dataWorker, &DataWorker::unsupportedSymbol, this, [this](const QString& cur,const QString& reason){
+        if (widgets.contains(cur)) widgets[cur]->setUnsupportedReason(reason);
+    });
     connect(workerThread, &QThread::finished, dataWorker, &QObject::deleteLater);
     // push currencies to worker after moving to thread
     QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setCurrencies(currentCurrencies); }, Qt::QueuedConnection);
@@ -270,10 +357,18 @@ MainWindow::MainWindow() {
 
 #include "MainWindow.moc"
 
-MainWindow::~MainWindow() { dataWorker->stop(); workerThread->quit(); workerThread->wait(); }
+MainWindow::~MainWindow() {
+    if (dataWorker) {
+        // Ensure the worker stops in its own thread before quitting
+        QMetaObject::invokeMethod(dataWorker, "stop", Qt::BlockingQueuedConnection);
+    }
+    workerThread->quit();
+    workerThread->wait();
+}
 
 void MainWindow::switchMode(StreamMode m) {
-    streamMode = m; QMetaObject::invokeMethod(dataWorker, [this,m](){ dataWorker->stop(); dataWorker->setMode(m); dataWorker->start(); }, Qt::QueuedConnection);
+    streamMode = m;
+    QMetaObject::invokeMethod(dataWorker, [this,m](){ dataWorker->stop(); dataWorker->setMode(m); dataWorker->start(); }, Qt::QueuedConnection);
     setWindowTitle(QString("Modular Crypto Dashboard — %1").arg(m==StreamMode::Trade?"TRADE":"TICKER"));
     // Persist choice
     QSettings st("alel12", "modular_dashboard"); st.setValue("stream/mode", m==StreamMode::Ticker?"TICKER":"TRADE"); st.sync();
@@ -350,6 +445,9 @@ void MainWindow::onRequestRename(const QString& currentTicker) {
         }
     }
     saveCurrenciesSettings(currentCurrencies);
+    // Clear unsupported banner on both involved widgets (fresh start after rename)
+    widgets[newTicker]->setUnsupportedReason("");
+    widgets[currentTicker]->setUnsupportedReason("");
     QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setCurrencies(currentCurrencies); }, Qt::QueuedConnection);
 }
 

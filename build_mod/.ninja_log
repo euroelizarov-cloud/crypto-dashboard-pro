@@ -1,0 +1,17 @@
+# ninja log v7
+7	10379	1758540549008171251	modular_dashboard_autogen/timestamp	1f7db8504e285b31
+7	10379	1758540549008171251	modular_dashboard_autogen/mocs_compilation.cpp	1f7db8504e285b31
+7	10379	1758540549008171251	/Users/alel12/dashboard/build_mod/modular_dashboard_autogen/timestamp	1f7db8504e285b31
+7	10379	1758540549008171251	/Users/alel12/dashboard/build_mod/modular_dashboard_autogen/mocs_compilation.cpp	1f7db8504e285b31
+10424	31941	1758540549132734488	CMakeFiles/modular_dashboard.dir/src/Profiler.cpp.o	37071b3ab871b8a2
+10437	35526	1758540549145048961	CMakeFiles/modular_dashboard.dir/src/ThemeManager.cpp.o	a59d1851f3eb6c1e
+10405	37101	1758540549113354616	CMakeFiles/modular_dashboard.dir/modular_dashboard_autogen/mocs_compilation.cpp.o	6694a082a3ed3a34
+10407	37372	1758540549115197067	CMakeFiles/modular_dashboard.dir/src/main.cpp.o	d842f0c9461d310a
+10420	38098	1758540549128696210	CMakeFiles/modular_dashboard.dir/src/DynamicSpeedometerCharts.cpp.o	1def48ef1d5b0744
+10408	39949	1758540549116634880	CMakeFiles/modular_dashboard.dir/src/MainWindow.cpp.o	786fa82d301a8aac
+30	183	1758540636853671677	modular_dashboard_autogen/timestamp	1f7db8504e285b31
+30	183	1758540636853671677	modular_dashboard_autogen/mocs_compilation.cpp	1f7db8504e285b31
+30	183	1758540636853671677	/Users/alel12/dashboard/build_mod/modular_dashboard_autogen/timestamp	1f7db8504e285b31
+30	183	1758540636853671677	/Users/alel12/dashboard/build_mod/modular_dashboard_autogen/mocs_compilation.cpp	1f7db8504e285b31
+183	4820	1758540637006983380	CMakeFiles/modular_dashboard.dir/src/DataWorker.cpp.o	1f1809a6d55dbcd3
+4820	5350	1758540641644048463	modular_dashboard.app/Contents/MacOS/modular_dashboard	bd2dc16af909e033
