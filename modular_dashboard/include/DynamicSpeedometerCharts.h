@@ -26,7 +26,7 @@ class DynamicSpeedometerCharts : public QWidget {
     Q_OBJECT
     Q_PROPERTY(double value READ getValue WRITE setValue NOTIFY valueChanged)
 public:
-    enum class SpeedometerStyle { Classic, NeonGlow, Minimal, ModernTicks, Circle, Gauge, Ring };
+    enum class SpeedometerStyle { Classic, NeonGlow, Minimal, ModernTicks, Circle, Gauge, Ring, SegmentBar, DualArc };
     enum class ScalingMode { Fixed, Adaptive, Manual, PythonLike };
     struct ScalingSettings { ScalingMode mode = ScalingMode::Adaptive; double fixedMin = 0.0; double fixedMax = 100.0; };
     explicit DynamicSpeedometerCharts(const QString& currency, QWidget* parent=nullptr);
@@ -48,6 +48,8 @@ public:
     }
     // Runtime tuning for Python-like scaling behavior
     void setPythonScalingParams(double initSpanPct, double minCompress, double maxCompress, double minWidthPct);
+    // Chart options (affect line chart modes)
+    void setChartOptions(bool grid, bool axisLabels) { showGrid = grid; showAxisLabels = axisLabels; updateChartSeries(); }
     void setSpeedometerColors(const QColor& primary, const QColor& secondary, const QColor& text, const QColor& background) {
         themeColors.zoneGood = primary; themeColors.arcBase = secondary; themeColors.text = text; themeColors.background = background;
         if (modeView=="speedometer") update();

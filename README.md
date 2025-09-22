@@ -12,7 +12,9 @@ Modern real-time cryptocurrency dashboard built with Qt6 and C++. Features advan
 - **ModernTicks** - Contemporary tick marks
 - **Classic Pro** - Professional traditional style with detailed markings
 - **Gauge** - Clean gauge with value indicators
-- **Modern Scale** - Contemporary linear-style scale design
+- **Modern Scale** - Contemporary linear-style scale design with segmented progress
+- **Segment Bar** - Bold segmented arc with clean center labels
+- **Dual Arc** - Outer arc shows value, inner arc shows volatility
 
 ### 🎨 **Rich Color Themes (15+ themes)**
 - **Dark** - Classic dark theme
@@ -32,18 +34,22 @@ Modern real-time cryptocurrency dashboard built with Qt6 and C++. Features advan
 - **Per-widget** - Individual scaling per cryptocurrency
 
 ### 🔧 **Advanced Features**
-- **Real-time WebSocket** connection to Binance API
+- **Real-time WebSocket** connection to Binance & Bybit APIs
+- **Bybit dual-market fallback** - Linear/Spot auto-fallback per symbol
+- **Provider & market badges** - Visible on each widget
 - **Per-widget customization** - Individual styles and settings
 - **Threshold highlighting** - Color-coded warning zones
 - **Performance monitoring** - Built-in profiling and optimization
 - **Persistent settings** - All customizations saved automatically
 - **Context menus** - Right-click for quick style changes
 - **Memory management** - Configurable cache limits and data retention
+- **Chart options** - Toggle grid and axis labels in chart modes
 
 ## 🚀 **Live Data Support**
-- **12 Cryptocurrencies**: BTC, ETH, XRP, BNB, SOL, DOGE, XLM, HBAR, APT, TAO, LAYER, TON
-- **Real-time updates** from Binance Stream API
+- **Top tickers**: BTC, ETH, XRP, BNB, SOL, DOGE, XLM, HBAR, APT, TAO, LAYER, TON (extendable)
+- **Real-time updates** from Binance & Bybit
 - **Trade/Ticker modes** with automatic fallback
+- **Bybit dual-market logic** with per-symbol tracking
 - **Performance metrics** showing update rates
 
 ## 🛠️ **Technical Stack**
@@ -70,11 +76,13 @@ dashboard/
 │       └── DataWorker.cpp
 ├── CMakeLists.txt              # Build configuration
 └── build/                      # Build output (ignored)
+
+Grid presets and auto-fill from TOP50 are managed in `MainWindow`.
 ```
 
 ## ⬇️ Download
 
-- macOS app (v0.3.0): https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/download/v0.3.0/modular_dashboard-v0.3.0-macos.zip
+- macOS app (v0.4.0): https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/download/v0.4.0/modular_dashboard-v0.4.0-macos.zip
 
 ## 🔨 **Building**
 
@@ -93,23 +101,25 @@ cmake --build . --target modular_dashboard -j8
 
 ### Run
 ```bash
-./build/Qt_6_9_1_for_macOS-Debug/modular_dashboard/modular_dashboard.app/Contents/MacOS/modular_dashboard
+./build_mod/modular_dashboard.app/Contents/MacOS/modular_dashboard
 ```
 
 ## 🎯 **Usage**
 
 ### Basic Operation
 1. **Launch** the application
-2. **Wait** for WebSocket connection to Binance
-3. **Watch** real-time cryptocurrency data updates
-4. **Customize** styles via Settings menu or right-click context menus
+2. **Switch provider**: Settings → Provider → Binance or Bybit (fallback logic auto-handles Bybit Linear/Spot)
+3. **Use grid layouts**: View → Grid → 1x1 … 7x7; auto-fill with TOP50 if enabled
+4. **Toggle chart features**: Right-click widget → Chart Options → Show grid / Show axis labels
+5. **Customize** styles via Settings or right-click context menus
 
 ### Customization
 - **Global Styles**: Settings → Speedometer Style
 - **Per-Widget**: Right-click any speedometer → Choose style
 - **Themes**: Settings → Theme
-- **Auto-scaling**: Settings → Auto-scaling
+- **Auto-scaling**: Settings → Auto-scaling (Adaptive / Fixed / Manual / Python-like)
 - **Thresholds**: Settings → Thresholds
+- **Chart options**: Right-click → Chart Options
 
 ### Performance Tuning
 - **Animation timing**: Settings → Performance → Animation delays
@@ -141,7 +151,9 @@ cmake --build . --target modular_dashboard -j8
 - ✅ **Phase 2**: Custom speedometer visualizations
 - ✅ **Phase 3**: Multiple styles and themes
 - ✅ **Phase 4**: Advanced customization and scaling
-- ✅ **Phase 5**: Performance optimization and polish
+- ✅ **Phase 5**: Provider switching, Bybit dual-market fallback, market badges
+- ✅ **Phase 6**: Grid layouts 1x1…7x7 with TOP50 auto-fill
+- ✅ **Phase 7**: New styles (Segment Bar, Dual Arc), chart grid/labels toggles
 
 ## 🤝 **Contributing**
 This is a personal project showcasing modern Qt development practices. Feel free to explore the code and adapt it for your own projects.

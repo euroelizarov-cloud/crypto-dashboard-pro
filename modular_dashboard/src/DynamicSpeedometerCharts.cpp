@@ -106,6 +106,8 @@ void DynamicSpeedometerCharts::contextMenuEvent(QContextMenuEvent* e) {
     QAction* stCircle  = addStyle("Classic Pro");
     QAction* stGauge   = addStyle("Gauge");
     QAction* stRing    = addStyle("Modern Scale");
+    QAction* stSegBar  = addStyle("Segment Bar");
+    QAction* stDualArc = addStyle("Dual Arc");
     auto checkByCurrent = [&](){
         stClassic->setChecked(style==SpeedometerStyle::Classic);
         stNeon->setChecked(style==SpeedometerStyle::NeonGlow);
@@ -114,6 +116,8 @@ void DynamicSpeedometerCharts::contextMenuEvent(QContextMenuEvent* e) {
         stCircle->setChecked(style==SpeedometerStyle::Circle);
         stGauge->setChecked(style==SpeedometerStyle::Gauge);
         stRing->setChecked(style==SpeedometerStyle::Ring);
+        stSegBar->setChecked(style==SpeedometerStyle::SegmentBar);
+        stDualArc->setChecked(style==SpeedometerStyle::DualArc);
     }; checkByCurrent();
     auto applyStyle = [&](SpeedometerStyle s, const QString& name){ setSpeedometerStyle(s); emit styleSelected(currency, name); };
     QObject::connect(stClassic, &QAction::triggered, this, [&,this](){ applyStyle(SpeedometerStyle::Classic, "Classic"); });
@@ -123,6 +127,17 @@ void DynamicSpeedometerCharts::contextMenuEvent(QContextMenuEvent* e) {
     QObject::connect(stCircle,  &QAction::triggered, this, [&,this](){ applyStyle(SpeedometerStyle::Circle, "Classic Pro"); });
     QObject::connect(stGauge,   &QAction::triggered, this, [&,this](){ applyStyle(SpeedometerStyle::Gauge, "Gauge"); });
     QObject::connect(stRing,    &QAction::triggered, this, [&,this](){ applyStyle(SpeedometerStyle::Ring, "Modern Scale"); });
+    QObject::connect(stSegBar,  &QAction::triggered, this, [&,this](){ applyStyle(SpeedometerStyle::SegmentBar, "Segment Bar"); });
+    QObject::connect(stDualArc, &QAction::triggered, this, [&,this](){ applyStyle(SpeedometerStyle::DualArc, "Dual Arc"); });
+
+    // Chart options submenu
+    QMenu* chartMenu = menu.addMenu("Chart Options");
+    QAction* actGrid = chartMenu->addAction("Show grid");
+    actGrid->setCheckable(true); actGrid->setChecked(showGrid);
+    QAction* actAxis = chartMenu->addAction("Show axis labels");
+    actAxis->setCheckable(true); actAxis->setChecked(showAxisLabels);
+    connect(actGrid, &QAction::toggled, this, [this](bool on){ setChartOptions(on, showAxisLabels); });
+    connect(actAxis, &QAction::toggled, this, [this](bool on){ setChartOptions(showGrid, on); });
     menu.addSeparator();
     QAction* renameAct = menu.addAction("Rename ticker...");
     connect(renameAct, &QAction::triggered, this, [this](){ emit requestRename(currency); });
@@ -260,6 +275,75 @@ void DynamicSpeedometerCharts::drawSpeedometer(QPainter& painter) {
             drawCommonTexts();
             break;
         }
+        case SpeedometerStyle::SegmentBar: {
+            // SegmentBar: bold segmented progress along the arc with clear gaps
+            painter.setPen(QPen(themeColors.arcBase, 2));
+            QRect base = rect.adjusted(12,12,-12,-12);
+            painter.drawArc(base, 45*16, 270*16);
+
+            int warn = thresholds.warn, danger = thresholds.danger; if (!thresholds.enabled) { warn=70; danger=90; }
+            QColor indicator = (_value>=danger? themeColors.zoneDanger : (_value>=warn? themeColors.zoneWarn : themeColors.zoneGood));
+            painter.setPen(QPen(indicator, 8, Qt::SolidLine, Qt::RoundCap));
+
+            // Draw discrete segments every 4% with 2% gap
+            for (int v=0; v < int(_value); v+=4) {
+                double segStart = 45 + (270.0 * v / 100.0);
+                double segSpan  = 270.0 * 2.8 / 100.0; // segment length ~2.8%
+                painter.drawArc(base, int(segStart*16), int(segSpan*16));
+            }
+
+            // Minimal central label
+            painter.setPen(themeColors.text);
+            painter.setFont(QFont("Arial", 18, QFont::DemiBold));
+            QString valueText = history.empty() ? QString("0.000") : QLocale().toString(history.back().second, 'f', 3);
+            painter.drawText(QRect(0, h/2-18, w, 24), Qt::AlignCenter, valueText);
+            painter.setFont(QFont("Arial", 9));
+            painter.setPen(themeColors.text.lighter());
+            painter.drawText(QRect(0, h/2+6, w, 18), Qt::AlignCenter, currency);
+            break;
+        }
+        case SpeedometerStyle::DualArc: {
+            // DualArc: outer arc shows value; inner arc shows volatility level as a secondary metric
+            QRect outer = rect.adjusted(6,6,-6,-6);
+            QRect inner = rect.adjusted(22,22,-22,-22);
+
+            // Base arcs
+            painter.setPen(QPen(themeColors.arcBase, 2));
+            painter.drawArc(outer, 45*16, 270*16);
+            painter.setPen(QPen(themeColors.arcBase.lighter(130), 2));
+            painter.drawArc(inner, 45*16, 270*16);
+
+            // Outer progress (value)
+            int warn = thresholds.warn, danger = thresholds.danger; if (!thresholds.enabled) { warn=70; danger=90; }
+            QColor outerColor = (_value>=danger? themeColors.zoneDanger : (_value>=warn? themeColors.zoneWarn : themeColors.zoneGood));
+            painter.setPen(QPen(outerColor, 6, Qt::SolidLine, Qt::RoundCap));
+            painter.drawArc(outer, 45*16, int((270.0 * std::clamp(_value, 0.0, 100.0) / 100.0)*16));
+
+            // Inner progress (volatility scaled 0..100)
+            double volPct = std::min(100.0, std::max(0.0, volatility));
+            QColor innerColor = themeColors.glow; innerColor.setAlpha(200);
+            painter.setPen(QPen(innerColor, 4, Qt::SolidLine, Qt::RoundCap));
+            painter.drawArc(inner, 45*16, int((270.0 * volPct / 100.0)*16));
+
+            // Needle for precise value
+            QColor needle = (!thresholds.enabled)? themeColors.needleNormal : (_value>=danger? themeColors.zoneDanger : (_value>=warn? themeColors.zoneWarn : themeColors.needleNormal));
+            painter.setPen(QPen(needle, 3)); painter.translate(w/2,h/2); painter.rotate(angle);
+            painter.drawLine(0,0,size/2-18,0); painter.resetTransform();
+
+            // Labels
+            painter.setPen(themeColors.text);
+            painter.setFont(QFont("Arial", 10, QFont::DemiBold));
+            painter.drawText(QRect(0, h/2+14, w, 16), Qt::AlignCenter, currency);
+            painter.setFont(QFont("Arial", 16, QFont::Bold));
+            QString valStr = history.empty() ? QString("0.000") : QLocale().toString(history.back().second, 'f', 3);
+            painter.drawText(QRect(0, h/2-28, w, 24), Qt::AlignCenter, valStr);
+
+            // Volatility tag in corner
+            painter.setFont(QFont("Arial", 8)); painter.setPen(themeColors.text.lighter());
+            painter.drawText(QRect(8, 8, w-16, 16), Qt::AlignLeft|Qt::AlignVCenter, QString("Vol: %1% ").arg(volatility,0,'f',2));
+
+            break;
+        }
         case SpeedometerStyle::NeonGlow: {
             // Darker background for neon effect, but still use theme tint
             QColor neonBg = themeColors.background.darker(150);
@@ -287,21 +371,21 @@ void DynamicSpeedometerCharts::drawSpeedometer(QPainter& painter) {
             break;
         }
         case SpeedometerStyle::ModernTicks: {
-            // Use theme colors for tick accents
-            painter.setPen(QPen(themeColors.zoneGood, 2)); painter.drawArc(rect, 45*16, 90*16);
-            painter.setPen(QPen(themeColors.zoneWarn, 2)); painter.drawArc(rect, (45+90)*16, 90*16);
-            painter.setPen(QPen(themeColors.zoneDanger, 2)); painter.drawArc(rect, (45+180)*16, 90*16);
+            // Minimal ModernTicks: muted base arc + single-tone ticks with subtle emphasis
+            QColor base = themeColors.arcBase;
+            painter.setPen(QPen(base, 2)); painter.drawArc(rect, 45*16, 270*16);
             painter.save(); painter.translate(w/2,h/2);
+            QColor tickMain = themeColors.text;
             for (int v=0; v<=100; v+=10) {
                 painter.save(); double a = 45 + 270.0*v/100.0; painter.rotate(a);
-                int len = (v%20==0) ? 16 : 8; int t = size/2 - 10; 
-                QColor tickColor = (v<33) ? themeColors.zoneGood : (v<66 ? themeColors.zoneWarn : themeColors.zoneDanger);
-                painter.setPen(QPen(tickColor, (v%20==0)?3:1)); painter.drawLine(t-len,0,t,0);
+                int len = (v%20==0) ? 14 : 6; int t = size/2 - 10; 
+                int width = (v%20==0)?2:1;
+                painter.setPen(QPen(tickMain, width)); painter.drawLine(t-len,0,t,0);
                 painter.restore();
             }
             painter.restore();
-            QColor needle = (!thresholds.enabled)? themeColors.needleNormal : (_value>=thresholds.danger? themeColors.zoneDanger : (_value>=thresholds.warn? themeColors.zoneWarn : themeColors.zoneGood));
-            painter.setPen(QPen(needle, 4)); painter.translate(w/2,h/2); painter.rotate(angle); painter.drawLine(0,0,size/2-18,0); painter.resetTransform();
+            QColor needle = (!thresholds.enabled)? themeColors.text : (_value>=thresholds.danger? themeColors.zoneDanger : (_value>=thresholds.warn? themeColors.zoneWarn : themeColors.zoneGood));
+            painter.setPen(QPen(needle, 3)); painter.translate(w/2,h/2); painter.rotate(angle); painter.drawLine(0,0,size/2-18,0); painter.resetTransform();
             drawCommonTexts();
             break;
         }
@@ -323,13 +407,16 @@ void DynamicSpeedometerCharts::drawSpeedometer(QPainter& painter) {
             // Draw minor tick marks (every 10 units)
             painter.setPen(QPen(themeColors.text.lighter(), 1));
             for (int v=10; v<=90; v+=20) {
-                painter.save(); painter.translate(w/2, h/2); 
-                double a = 45 + 270.0*v/100.0; painter.rotate(a);
-                int outer = size/2 - 8, inner = size/2 - 13;
-                painter.drawLine(outer, 0, inner, 0); painter.restore();
-                
-                a = 45 + 270.0*(v+10)/100.0; painter.rotate(a-270.0*v/100.0);
-                painter.drawLine(outer, 0, inner, 0); painter.restore();
+                // first minor tick
+                painter.save(); painter.translate(w/2, h/2);
+                double a1 = 45 + 270.0*v/100.0; painter.rotate(a1);
+                { int outer = size/2 - 8, inner = size/2 - 13; painter.drawLine(outer, 0, inner, 0); }
+                painter.restore();
+                // second minor tick (v+10)
+                painter.save(); painter.translate(w/2, h/2);
+                double a2 = 45 + 270.0*(v+10)/100.0; painter.rotate(a2);
+                { int outer = size/2 - 8, inner = size/2 - 13; painter.drawLine(outer, 0, inner, 0); }
+                painter.restore();
             }
             
             // Colored zones with threshold support
@@ -373,22 +460,35 @@ void DynamicSpeedometerCharts::drawSpeedometer(QPainter& painter) {
             break;
         }
         case SpeedometerStyle::Gauge: {
-            // Clean gauge with multi-color arc and value indicator
-            painter.setPen(QPen(themeColors.zoneGood, 4)); painter.drawArc(rect.adjusted(5,5,-5,-5), 45*16, 110*16);
-            painter.setPen(QPen(themeColors.zoneWarn, 4)); painter.drawArc(rect.adjusted(5,5,-5,-5), (45+110)*16, 80*16);
-            painter.setPen(QPen(themeColors.zoneDanger, 4)); painter.drawArc(rect.adjusted(5,5,-5,-5), (45+190)*16, 80*16);
-            // Value indicator line at current position
-            QColor indicatorColor = (!thresholds.enabled)? themeColors.glow : (_value>=thresholds.danger? themeColors.zoneDanger : (_value>=thresholds.warn? themeColors.zoneWarn : themeColors.zoneGood));
-            painter.setPen(QPen(indicatorColor, 6, Qt::SolidLine, Qt::RoundCap));
+            // Minimalist Gauge: subdued base arc + thin multi-zone accents + refined indicator
+            QColor base = themeColors.arcBase;
+            painter.setPen(QPen(base, 2));
+            QRect r2 = rect.adjusted(10,10,-10,-10);
+            painter.drawArc(r2, 45*16, 270*16);
+
+            int warn = thresholds.warn, danger = thresholds.danger; if (!thresholds.enabled) { warn=70; danger=90; }
+            auto faint = [](QColor c){ c.setAlpha(140); return c; };
+            // Subtle zones
+            painter.setPen(QPen(faint(themeColors.zoneGood), 3)); painter.drawArc(r2, 45*16, int((warn*270.0/100.0)*16));
+            painter.setPen(QPen(faint(themeColors.zoneWarn), 3)); painter.drawArc(r2, int((45 + warn*270.0/100.0)*16), int(((danger-warn)*270.0/100.0)*16));
+            painter.setPen(QPen(faint(themeColors.zoneDanger), 3)); painter.drawArc(r2, int((45 + danger*270.0/100.0)*16), int(((100-danger)*270.0/100.0)*16));
+
+            // Slim indicator with soft tip
+            QColor indicatorColor = (!thresholds.enabled)? themeColors.text : (_value>=danger? themeColors.zoneDanger : (_value>=warn? themeColors.zoneWarn : themeColors.zoneGood));
+            painter.setPen(QPen(indicatorColor, 4, Qt::SolidLine, Qt::RoundCap));
             double indicatorAngle = 45 + (270 * _value / 100);
             painter.save(); painter.translate(w/2, h/2); painter.rotate(indicatorAngle);
-            int startR = size/2 - 25, endR = size/2 - 10;
-            painter.drawLine(startR, 0, endR, 0); painter.restore();
-            // Optional: small value marks
+            int startR = size/2 - 28, endR = size/2 - 12;
+            painter.drawLine(startR, 0, endR, 0);
+            painter.setBrush(indicatorColor.lighter()); painter.setPen(Qt::NoPen);
+            painter.drawEllipse(QPoint(endR, 0), 4, 4);
+            painter.restore();
+
+            // Sparse ticks
             painter.setPen(QPen(themeColors.text.lighter(), 1));
             for (int v=0; v<=100; v+=25) {
                 painter.save(); painter.translate(w/2, h/2); double a = 45 + 270.0*v/100.0; painter.rotate(a);
-                int t = size/2 - 8; painter.drawLine(t-4,0,t,0); painter.restore();
+                int t = size/2 - 8; painter.drawLine(t-3,0,t,0); painter.restore();
             }
             drawCommonTexts();
             break;
@@ -490,5 +590,20 @@ void DynamicSpeedometerCharts::updateChartSeries() {
         axisX->setRange(0, std::max<int>(1, int(values.size()-1)));
         axisY->setRange(minY, maxY);
         chart->setTitle(useBtc ? QString("%1/BTC | %2").arg(currency, currentScale) : QString("%1 | %2").arg(currency, currentScale));
+        // Apply chart options
+        axisX->setGridLineVisible(showGrid);
+        axisY->setGridLineVisible(showGrid);
+        axisX->setVisible(showAxisLabels);
+        axisY->setVisible(showAxisLabels);
+        // Keep background aligned to theme
+        chart->setBackgroundBrush(themeColors.background);
+        QPen gridPen(themeColors.arcBase);
+        gridPen.setStyle(Qt::DotLine);
+        gridPen.setWidth(1);
+        axisX->setGridLinePen(gridPen);
+        axisY->setGridLinePen(gridPen);
+        // Lines appearance
+        s->setPointsVisible(false);
+        s->setUseOpenGL(false);
     }
 }
