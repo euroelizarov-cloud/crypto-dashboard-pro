@@ -20,6 +20,7 @@ public:
     Q_INVOKABLE void setMode(StreamMode m);
     Q_INVOKABLE void setProvider(DataProvider p);
     Q_INVOKABLE void setBybitPreference(BybitPreference pref) { bybitPreference = pref; }
+    Q_INVOKABLE void setAllowBybitFallback(bool allow) { allowBybitFallback = allow; }
 public slots:
     void start();
     void stop();
@@ -65,6 +66,7 @@ private:
     QSet<QString> invalidLinearBybit;  // uppercase currency codes unsupported on Linear
     QSet<QString> invalidSpotBybit;    // uppercase currency codes unsupported on Spot
     BybitPreference bybitPreference = BybitPreference::LinearFirst;
+    bool allowBybitFallback = true; // when false, do not fall back to alternate Bybit market
     // Track where we last attempted a subscription for a symbol
     QHash<QString, BybitMarket> lastSubMarket;
 };

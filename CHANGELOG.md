@@ -1,4 +1,18 @@
 # Changelog
+# Changelog
+
+## v0.5.0 — 2025-09-22
+
+### Added
+- Computed widgets (pseudo tickers): @AVG, @ALT_AVG, @MEDIAN, @SPREAD
+- Binance↔Bybit price difference widget: @DIFF:SYMBOL[:Linear|Spot]
+- Right-click menu to insert computed widgets without typing
+
+### Improved
+- Separate compare workers for strict market diff subscriptions (no Bybit fallback)
+
+### Notes
+- Computed widgets use fixed 0..100 scaling and update live from existing widgets/streams.
 
 ## v0.4.0 — 2025-09-22
 

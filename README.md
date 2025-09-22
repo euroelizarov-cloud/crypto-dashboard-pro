@@ -82,7 +82,7 @@ Grid presets and auto-fill from TOP50 are managed in `MainWindow`.
 
 ## ⬇️ Download
 
-- macOS app (v0.4.0): https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/download/v0.4.0/modular_dashboard-v0.4.0-macos.zip
+- macOS app (v0.5.0): https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/download/v0.5.0/modular_dashboard-v0.5.0-macos.zip
 
 ## 🔨 **Building**
 
@@ -120,6 +120,15 @@ cmake --build . --target modular_dashboard -j8
 - **Auto-scaling**: Settings → Auto-scaling (Adaptive / Fixed / Manual / Python-like)
 - **Thresholds**: Settings → Thresholds
 - **Chart options**: Right-click → Chart Options
+
+### Computed Widgets (Pseudo Tickers)
+- Use special names to show derived metrics instead of a real symbol:
+	- `@AVG` — average of all real widgets (0..100)
+	- `@ALT_AVG` — average excluding BTC
+	- `@MEDIAN` — median of all real widgets
+	- `@SPREAD` — max − min (range)
+	- `@DIFF:SYMBOL[:Linear|Spot]` — percent difference between Bybit (Linear/Spot) and Binance for SYMBOL, centered at 50 (0% diff)
+- Add via Right-click → Computed menu (no typing needed)
 
 ### Performance Tuning
 - **Animation timing**: Settings → Performance → Animation delays

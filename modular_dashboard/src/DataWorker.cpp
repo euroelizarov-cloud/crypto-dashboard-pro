@@ -270,7 +270,7 @@ void DataWorker::handleBybitSubscribeAck(const QJsonObject& root) {
         // If Linear rejects symbol, attempt to subscribe it on Spot
         // Decide which market rejected based on lastSubMarket
         BybitMarket last = lastSubMarket.value(sym, (bybitPreference==BybitPreference::LinearFirst)?BybitMarket::Linear:BybitMarket::Spot);
-        if (last == BybitMarket::Linear && !invalidLinearBybit.contains(sym)) {
+        if (allowBybitFallback && last == BybitMarket::Linear && !invalidLinearBybit.contains(sym)) {
             invalidLinearBybit.insert(sym);
             qDebug() << "[DataWorker] Bybit Linear does not support" << sym << ", trying Spot.";
             if (bybitAlt && bybitAlt->state()==QAbstractSocket::UnconnectedState) {
@@ -289,6 +289,12 @@ void DataWorker::handleBybitSubscribeAck(const QJsonObject& root) {
             return;
         }
         // If Spot also rejects, mark fully invalid
+        if (!allowBybitFallback && last == BybitMarket::Linear) {
+            // In strict mode, just mark unsupported for this worker
+            invalidLinearBybit.insert(sym);
+            qDebug() << "[DataWorker] Bybit Linear unsupported for" << sym << " (strict, no fallback).";
+            return;
+        }
         if (!invalidSymbolsBybit.contains(sym)) {
             invalidSymbolsBybit.insert(sym);
             qDebug() << "[DataWorker] Bybit Spot also invalid for" << sym << ": fully filtering";

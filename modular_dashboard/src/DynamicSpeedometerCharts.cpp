@@ -138,6 +138,19 @@ void DynamicSpeedometerCharts::contextMenuEvent(QContextMenuEvent* e) {
     actAxis->setCheckable(true); actAxis->setChecked(showAxisLabels);
     connect(actGrid, &QAction::toggled, this, [this](bool on){ setChartOptions(on, showAxisLabels); });
     connect(actAxis, &QAction::toggled, this, [this](bool on){ setChartOptions(showGrid, on); });
+
+    // Computed widgets submenu
+    QMenu* compMenu = menu.addMenu("Computed");
+    auto addComp = [&](const QString& label, const QString& token){ QAction* a = compMenu->addAction(label); QObject::connect(a, &QAction::triggered, this, [this,token](){ emit requestChangeTicker(currency, token); }); return a; };
+    addComp("Average (@AVG)", "@AVG");
+    addComp("Alt Average (@ALT_AVG)", "@ALT_AVG");
+    addComp("Median (@MEDIAN)", "@MEDIAN");
+    addComp("Spread (@SPREAD)", "@SPREAD");
+    // DIFF presets for current currency if it looks like a symbol
+    if (!currency.startsWith("@") && !currency.isEmpty()) {
+        addComp(QString("Diff vs Binance: %1 Linear").arg(currency), QString("@DIFF:%1:Linear").arg(currency));
+        addComp(QString("Diff vs Binance: %1 Spot").arg(currency),   QString("@DIFF:%1:Spot").arg(currency));
+    }
     menu.addSeparator();
     QAction* renameAct = menu.addAction("Rename ticker...");
     connect(renameAct, &QAction::triggered, this, [this](){ emit requestRename(currency); });

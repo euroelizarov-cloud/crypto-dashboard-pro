@@ -12,8 +12,18 @@
 #include <QSettings>
 #include <QApplication>
 #include <algorithm>
+#include <QDateTime>
+#include <numeric>
 
 static const QStringList DEFAULT_CURRENCIES = {"BTC", "XRP", "BNB", "SOL", "DOGE", "XLM", "HBAR", "ETH", "APT", "TAO", "LAYER", "TON"};
+// Top 50 list used to auto-fill grid when more slots requested
+static const QStringList TOP50 = {
+    "BTC","ETH","BNB","SOL","XRP","ADA","DOGE","TON","TRX","AVAX",
+    "SHIB","DOT","LINK","BCH","LTC","MATIC","NEAR","UNI","ETC","XLM",
+    "ATOM","HBAR","APT","ARB","OP","IMX","INJ","FIL","AAVE","SUI",
+    "LDO","RNDR","ICP","ALGO","VET","XTZ","FLOW","THETA","EGLD","MANA",
+    "SAND","AXS","GRT","FTM","KAS","TAO","LAYER","APTOS","PEPE","SEI"
+};
 
 class PerformanceConfigDialog : public QDialog {
     Q_OBJECT
@@ -67,19 +77,53 @@ private:
 
 MainWindow::MainWindow() {
     themeManager = new ThemeManager(this);
-    QWidget* central = new QWidget(this); setCentralWidget(central); auto* layout = new QGridLayout(central); layout->setSpacing(10);
+    QWidget* central = new QWidget(this); setCentralWidget(central); gridLayout = new QGridLayout(central); gridLayout->setSpacing(10);
     // Force the exact default currencies order as requested
     currentCurrencies = DEFAULT_CURRENCIES; saveCurrenciesSettings(currentCurrencies);
     int row=0, col=0; for (const QString& c : currentCurrencies) {
-        auto* w = new DynamicSpeedometerCharts(c); widgets[c]=w; layout->addWidget(w,row,col);
+    auto* w = new DynamicSpeedometerCharts(c); widgets[c]=w; gridLayout->addWidget(w,row,col);
         connect(w, &DynamicSpeedometerCharts::requestRename, this, &MainWindow::onRequestRename);
+        connect(w, &DynamicSpeedometerCharts::requestChangeTicker, this, [this,c](const QString& oldName, const QString& newName){
+            Q_UNUSED(oldName);
+            QMetaObject::invokeMethod(this, [this,c,newName](){
+                QString currentTicker = c;
+                QString newTicker = newName.trimmed().toUpper();
+                if (newTicker.isEmpty() || newTicker==currentTicker) return;
+                if (!widgets.contains(currentTicker)) return;
+                int idxOld = currentCurrencies.indexOf(currentTicker);
+                if (idxOld < 0) return;
+                if (widgets.contains(newTicker)) {
+                    int idxNew = currentCurrencies.indexOf(newTicker);
+                    if (idxNew >= 0) currentCurrencies.swapItemsAt(idxOld, idxNew);
+                    auto* w = widgets[currentTicker]; auto* other = widgets[newTicker];
+                    widgets[newTicker] = w; w->setCurrencyName(newTicker);
+                    widgets[currentTicker] = other; other->setCurrencyName(currentTicker);
+                } else {
+                    auto* w = widgets[currentTicker]; widgets.remove(currentTicker);
+                    widgets[newTicker] = w; w->setCurrencyName(newTicker);
+                    currentCurrencies[idxOld] = newTicker;
+                }
+                {
+                    QSettings st("alel12", "modular_dashboard");
+                    const QString oldKey = QString("ui/stylePerWidget/%1").arg(currentTicker);
+                    const QString newKey = QString("ui/stylePerWidget/%1").arg(newTicker);
+                    QString val = st.value(oldKey).toString(); if (!val.isEmpty() && st.value(newKey).toString().isEmpty()) { st.setValue(newKey, val); st.remove(oldKey); st.sync(); }
+                }
+                saveCurrenciesSettings(currentCurrencies);
+                widgets[newTicker]->setUnsupportedReason(""); widgets[currentTicker]->setUnsupportedReason("");
+                QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setCurrencies(realSymbolsFrom(currentCurrencies)); }, Qt::QueuedConnection);
+                refreshCompareSubscriptions();
+                reflowGrid();
+            }, Qt::QueuedConnection);
+        });
+    connectRealWidgetSignals(c, w);
         // Persist per-widget style when chosen from widget context menu
         connect(w, &DynamicSpeedometerCharts::styleSelected, this, [this](const QString& cur, const QString& styleName){
             QSettings st("alel12", "modular_dashboard");
             st.setValue(QString("ui/stylePerWidget/%1").arg(cur), styleName);
             st.sync();
         });
-        if (++col>=4) { col=0; ++row; }
+        if (++col>=gridCols) { col=0; ++row; }
     }
     setWindowTitle("Modular Crypto Dashboard"); resize(1600,900);
 
@@ -119,6 +163,44 @@ MainWindow::MainWindow() {
     });
 
     auto* settingsMenu = menuBar()->addMenu("Settings");
+    // Grid submenu (1..7 x 1..7)
+    QMenu* gridMenu = settingsMenu->addMenu("Grid");
+    QMenu* presetsMenu = gridMenu->addMenu("Presets (NxM)");
+    QMenu* colsMenu = gridMenu->addMenu("Columns");
+    QMenu* rowsMenu = gridMenu->addMenu("Rows");
+    QActionGroup* colsGroup = new QActionGroup(this); colsGroup->setExclusive(true);
+    QActionGroup* rowsGroup = new QActionGroup(this); rowsGroup->setExclusive(true);
+    auto makeNumAction = [&](QMenu* m, QActionGroup* g, int n){ QAction* a = m->addAction(QString::number(n)); a->setCheckable(true); g->addAction(a); return a; };
+    QList<QAction*> colActs; QList<QAction*> rowActs;
+    for (int n=1;n<=7;++n) { colActs << makeNumAction(colsMenu, colsGroup, n); rowActs << makeNumAction(rowsMenu, rowsGroup, n); }
+    // Presets 1x1 .. 7x7
+    for (int c=1;c<=7;++c) {
+        for (int r=1;r<=7;++r) {
+            QAction* a = presetsMenu->addAction(QString::number(c) + "×" + QString::number(r));
+            connect(a, &QAction::triggered, this, [this,c,r](){
+                QSettings st("alel12", "modular_dashboard");
+                gridCols = c; gridRows = r;
+                st.setValue("ui/grid/cols", gridCols); st.setValue("ui/grid/rows", gridRows); st.sync();
+                reflowGrid();
+            });
+        }
+    }
+    // Load saved grid size
+    {
+        QSettings st("alel12", "modular_dashboard");
+        gridCols = std::clamp(st.value("ui/grid/cols", 4).toInt(), 1, 7);
+        gridRows = std::clamp(st.value("ui/grid/rows", 3).toInt(), 1, 7);
+        colActs[gridCols-1]->setChecked(true);
+        rowActs[gridRows-1]->setChecked(true);
+    }
+    auto applyGrid = [this](int cols, int rows){
+        gridCols = std::clamp(cols, 1, 7);
+        gridRows = std::clamp(rows, 1, 7);
+        QSettings st("alel12", "modular_dashboard"); st.setValue("ui/grid/cols", gridCols); st.setValue("ui/grid/rows", gridRows); st.sync();
+        reflowGrid();
+    };
+    for (int i=0;i<colActs.size();++i) connect(colActs[i], &QAction::triggered, this, [this,applyGrid,i](){ applyGrid(i+1, gridRows); });
+    for (int i=0;i<rowActs.size();++i) connect(rowActs[i], &QAction::triggered, this, [this,applyGrid,i](){ applyGrid(gridCols, i+1); });
     auto* perfAct = settingsMenu->addAction("Performance..."); connect(perfAct, &QAction::triggered, this, &MainWindow::openPerformanceDialog);
     // Theme submenu with live apply
     QMenu* themeMenu = settingsMenu->addMenu("Theme");
@@ -319,11 +401,13 @@ MainWindow::MainWindow() {
     });
     connect(workerThread, &QThread::finished, dataWorker, &QObject::deleteLater);
     // push currencies to worker after moving to thread
-    QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setCurrencies(currentCurrencies); }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setCurrencies(realSymbolsFrom(currentCurrencies)); }, Qt::QueuedConnection);
     workerThread->start();
 
     // Load all persistent settings
     loadSettingsAndApply();
+    // Apply saved grid layout now that widgets are created
+    reflowGrid();
 
     // Initialize speedometer style from settings (global default)
     {
@@ -353,6 +437,22 @@ MainWindow::MainWindow() {
     // Apply saved performance settings and default theme
     loadSettingsAndApply();
     applyTheme("Dark"); // This will now apply theme colors to speedometers
+
+    // Initialize compare workers infrastructure (idle until used)
+    cmpBinance = new DataWorker(); cmpBinance->setProvider(DataProvider::Binance); cmpBinance->setMode(StreamMode::Ticker);
+    cmpBybitLinear = new DataWorker(); cmpBybitLinear->setProvider(DataProvider::Bybit); cmpBybitLinear->setMode(StreamMode::Ticker); cmpBybitLinear->setBybitPreference(BybitPreference::LinearFirst); cmpBybitLinear->setAllowBybitFallback(false);
+    cmpBybitSpot = new DataWorker(); cmpBybitSpot->setProvider(DataProvider::Bybit); cmpBybitSpot->setMode(StreamMode::Ticker); cmpBybitSpot->setBybitPreference(BybitPreference::SpotFirst); cmpBybitSpot->setAllowBybitFallback(false);
+    cmpBinanceThread = new QThread(this); cmpBybitLinearThread = new QThread(this); cmpBybitSpotThread = new QThread(this);
+    cmpBinance->moveToThread(cmpBinanceThread); cmpBybitLinear->moveToThread(cmpBybitLinearThread); cmpBybitSpot->moveToThread(cmpBybitSpotThread);
+    connect(cmpBinanceThread, &QThread::started, cmpBinance, &DataWorker::start);
+    connect(cmpBybitLinearThread, &QThread::started, cmpBybitLinear, &DataWorker::start);
+    connect(cmpBybitSpotThread, &QThread::started, cmpBybitSpot, &DataWorker::start);
+    connect(cmpBinance, &DataWorker::dataUpdated, this, [this](const QString& cur, double price, double){ binancePrice[cur]=price; recomputePseudoTickers(); });
+    connect(cmpBybitLinear, &DataWorker::dataUpdated, this, [this](const QString& cur, double price, double){ bybitLinearPrice[cur]=price; recomputePseudoTickers(); });
+    connect(cmpBybitSpot, &DataWorker::dataUpdated, this, [this](const QString& cur, double price, double){ bybitSpotPrice[cur]=price; recomputePseudoTickers(); });
+    connect(cmpBinanceThread, &QThread::finished, cmpBinance, &QObject::deleteLater);
+    connect(cmpBybitLinearThread, &QThread::finished, cmpBybitLinear, &QObject::deleteLater);
+    connect(cmpBybitSpotThread, &QThread::finished, cmpBybitSpot, &QObject::deleteLater);
 }
 
 #include "MainWindow.moc"
@@ -364,6 +464,13 @@ MainWindow::~MainWindow() {
     }
     workerThread->quit();
     workerThread->wait();
+    // Stop compare workers
+    if (cmpBinance) QMetaObject::invokeMethod(cmpBinance, "stop", Qt::BlockingQueuedConnection);
+    if (cmpBybitLinear) QMetaObject::invokeMethod(cmpBybitLinear, "stop", Qt::BlockingQueuedConnection);
+    if (cmpBybitSpot) QMetaObject::invokeMethod(cmpBybitSpot, "stop", Qt::BlockingQueuedConnection);
+    if (cmpBinanceThread) { cmpBinanceThread->quit(); cmpBinanceThread->wait(); }
+    if (cmpBybitLinearThread) { cmpBybitLinearThread->quit(); cmpBybitLinearThread->wait(); }
+    if (cmpBybitSpotThread) { cmpBybitSpotThread->quit(); cmpBybitSpotThread->wait(); }
 }
 
 void MainWindow::switchMode(StreamMode m) {
@@ -407,6 +514,13 @@ void MainWindow::openThemeDialog() {
 
 void MainWindow::handleData(const QString& currency, double price, double timestamp) {
     if (widgets.contains(currency)) { if (currency=="BTC") btcPrice=price; QMetaObject::invokeMethod(this, [this,currency,price,timestamp](){ widgets[currency]->updateData(price, timestamp, btcPrice); }, Qt::QueuedConnection); }
+    // Track normalized value when widget is a real symbol
+    if (!isPseudo(currency) && widgets.contains(currency)) {
+        // Ask widget for current normalized value via property 'value'
+        bool ok=false; double v = widgets[currency]->property("value").toDouble(&ok); if (!ok) v = 0.0;
+        normalizedBySymbol[currency] = std::clamp(v, 0.0, 100.0);
+        recomputePseudoTickers();
+    }
 }
 
 void MainWindow::onRequestRename(const QString& currentTicker) {
@@ -448,7 +562,8 @@ void MainWindow::onRequestRename(const QString& currentTicker) {
     // Clear unsupported banner on both involved widgets (fresh start after rename)
     widgets[newTicker]->setUnsupportedReason("");
     widgets[currentTicker]->setUnsupportedReason("");
-    QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setCurrencies(currentCurrencies); }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setCurrencies(realSymbolsFrom(currentCurrencies)); }, Qt::QueuedConnection);
+    refreshCompareSubscriptions();
 }
 
 MainWindow::PerfSettings MainWindow::readPerfSettings() {
@@ -491,6 +606,236 @@ void MainWindow::loadSettingsAndApply() {
     for (auto* w : widgets) w->setPythonScalingParams(pyInitSpan, pyMinComp, pyMaxComp, pyMinWidth);
     
     // Apply saved scaling mode to widgets handled in constructor when actions exist
+}
+
+void MainWindow::reflowGrid() {
+    if (!gridLayout) return;
+    int desired = std::max(1, gridCols * gridRows);
+    // Adjust currentCurrencies to desired size using TOP50 as source
+    QStringList newList = currentCurrencies;
+    // Extend if needed (do not auto-fill with pseudo)
+    if (newList.size() < desired) {
+        for (const auto& sym : TOP50) {
+            if (newList.size() >= desired) break;
+            if (!newList.contains(sym)) newList << sym;
+        }
+    }
+    // Shrink if needed
+    if (newList.size() > desired) {
+        newList = newList.mid(0, desired);
+    }
+
+    // Create widgets for newly added symbols; remove widgets for dropped symbols
+    // Build sets for diff
+    QSet<QString> before = QSet<QString>(currentCurrencies.begin(), currentCurrencies.end());
+    QSet<QString> after = QSet<QString>(newList.begin(), newList.end());
+    QSet<QString> toAdd = after - before;
+    QSet<QString> toRemove = before - after;
+
+    // Remove widgets that are no longer needed
+    for (const auto& c : toRemove) {
+        if (!widgets.contains(c)) continue;
+        QWidget* w = widgets[c];
+        // Remove from layout
+        for (int i=gridLayout->count()-1; i>=0; --i) {
+            QLayoutItem* it = gridLayout->itemAt(i);
+            if (it && it->widget()==w) { gridLayout->takeAt(i); break; }
+        }
+        widgets.remove(c);
+        w->deleteLater();
+    }
+
+    // Helper to map name->style
+    auto styleFromName = [](const QString& sName){
+        using S = DynamicSpeedometerCharts::SpeedometerStyle;
+        if (sName=="NeonGlow") return S::NeonGlow;
+        if (sName=="Minimal")  return S::Minimal;
+        if (sName=="ModernTicks") return S::ModernTicks;
+        if (sName=="Circle" || sName=="Classic Pro") return S::Circle;
+        if (sName=="Gauge") return S::Gauge;
+        if (sName=="Ring" || sName=="Modern Scale") return S::Ring;
+        return S::Classic;
+    };
+
+    // Create widgets for new symbols
+    for (const auto& c : toAdd) {
+        auto* w = new DynamicSpeedometerCharts(c);
+        widgets[c] = w;
+        connect(w, &DynamicSpeedometerCharts::requestRename, this, &MainWindow::onRequestRename);
+        connect(w, &DynamicSpeedometerCharts::requestChangeTicker, this, [this,c](const QString& oldName, const QString& newName){ Q_UNUSED(oldName); QMetaObject::invokeMethod(this, [this,c,newName](){
+            // Directly apply rename without dialog using the provided newName
+            QString currentTicker = c;
+            QString newTicker = newName.trimmed().toUpper();
+            if (newTicker.isEmpty() || newTicker==currentTicker) return;
+            if (!widgets.contains(currentTicker)) return;
+            int idxOld = currentCurrencies.indexOf(currentTicker);
+            if (idxOld < 0) return;
+            if (widgets.contains(newTicker)) {
+                int idxNew = currentCurrencies.indexOf(newTicker);
+                if (idxNew >= 0) currentCurrencies.swapItemsAt(idxOld, idxNew);
+                auto* w = widgets[currentTicker]; auto* other = widgets[newTicker];
+                widgets[newTicker] = w; w->setCurrencyName(newTicker);
+                widgets[currentTicker] = other; other->setCurrencyName(currentTicker);
+            } else {
+                auto* w = widgets[currentTicker]; widgets.remove(currentTicker);
+                widgets[newTicker] = w; w->setCurrencyName(newTicker);
+                currentCurrencies[idxOld] = newTicker;
+            }
+            // migrate per-widget style key
+            {
+                QSettings st("alel12", "modular_dashboard");
+                const QString oldKey = QString("ui/stylePerWidget/%1").arg(currentTicker);
+                const QString newKey = QString("ui/stylePerWidget/%1").arg(newTicker);
+                QString val = st.value(oldKey).toString(); if (!val.isEmpty() && st.value(newKey).toString().isEmpty()) { st.setValue(newKey, val); st.remove(oldKey); st.sync(); }
+            }
+            saveCurrenciesSettings(currentCurrencies);
+            widgets[newTicker]->setUnsupportedReason(""); widgets[currentTicker]->setUnsupportedReason("");
+            QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setCurrencies(realSymbolsFrom(currentCurrencies)); }, Qt::QueuedConnection);
+            refreshCompareSubscriptions();
+            reflowGrid();
+        }, Qt::QueuedConnection); });
+        connect(w, &DynamicSpeedometerCharts::styleSelected, this, [this](const QString& cur, const QString& styleName){
+            QSettings st("alel12", "modular_dashboard");
+            st.setValue(QString("ui/stylePerWidget/%1").arg(cur), styleName); st.sync();
+        });
+        connectRealWidgetSignals(c, w);
+        // Apply per-widget or global style
+        QSettings st("alel12", "modular_dashboard");
+        QString per = st.value(QString("ui/stylePerWidget/%1").arg(c)).toString();
+        QString globalName = st.value("ui/speedometerStyle", "Classic").toString();
+        w->setSpeedometerStyle(styleFromName(per.isEmpty()? globalName : per));
+        // Seed badge
+        QString provider = st.value("stream/provider","Binance").toString();
+        bool isBybit = provider.compare("Bybit", Qt::CaseInsensitive)==0;
+        QString market = "";
+        if (isBybit) {
+            QString pref = st.value("bybit/preference","LinearFirst").toString();
+            market = (pref=="LinearFirst")? "Linear" : "Spot";
+        }
+        w->setMarketBadge(isBybit?"Bybit":"Binance", market);
+    }
+
+    // Persist the new list and update state
+    currentCurrencies = newList; saveCurrenciesSettings(currentCurrencies);
+    if (dataWorker) QMetaObject::invokeMethod(dataWorker, [this](){ dataWorker->setCurrencies(realSymbolsFrom(currentCurrencies)); }, Qt::QueuedConnection);
+    refreshCompareSubscriptions();
+
+    // Rebuild layout grid with current list
+    while (gridLayout->count() > 0) { QLayoutItem* it = gridLayout->takeAt(0); Q_UNUSED(it); }
+    int row=0, col=0; for (const QString& c : currentCurrencies) {
+        if (!widgets.contains(c)) continue;
+        gridLayout->addWidget(widgets[c], row, col);
+        if (++col >= gridCols) { col=0; ++row; }
+    }
+
+    // Re-apply theme and performance/scaling to ensure new widgets match current settings
+    loadSettingsAndApply();
+    // Update geometry
+    centralWidget()->updateGeometry();
+}
+
+MainWindow::PseudoKind MainWindow::classifyPseudo(const QString& name, DiffSpec* outDiff) const {
+    if (!name.startsWith("@")) return PseudoKind::None;
+    const QString up = name.toUpper();
+    if (up == "@AVG") return PseudoKind::Avg;
+    if (up == "@ALT_AVG") return PseudoKind::AltAvg;
+    if (up == "@MEDIAN") return PseudoKind::Median;
+    if (up == "@SPREAD") return PseudoKind::Spread;
+    if (up.startsWith("@DIFF:")) {
+        if (!outDiff) return PseudoKind::Diff;
+        // Format: @DIFF:SYMBOL or @DIFF:SYMBOL:Linear|Spot
+        const QString body = name.mid(6); // after @DIFF:
+        QStringList parts = body.split(':', Qt::KeepEmptyParts);
+        if (parts.isEmpty()) { outDiff->valid=false; return PseudoKind::Diff; }
+        outDiff->symbol = parts[0].trimmed().toUpper(); outDiff->valid = !outDiff->symbol.isEmpty();
+        if (parts.size()>=2) {
+            QString m = parts[1].trimmed();
+            outDiff->market = (m.compare("Spot", Qt::CaseInsensitive)==0) ? BybitMarket::Spot : BybitMarket::Linear;
+        } else {
+            outDiff->market = BybitMarket::Linear;
+        }
+        return PseudoKind::Diff;
+    }
+    return PseudoKind::None;
+}
+
+void MainWindow::connectRealWidgetSignals(const QString& symbol, DynamicSpeedometerCharts* w) {
+    if (isPseudo(symbol)) return;
+    connect(w, &DynamicSpeedometerCharts::valueChanged, this, [this, symbol](double v){ normalizedBySymbol[symbol] = std::clamp(v, 0.0, 100.0); recomputePseudoTickers(); });
+}
+
+QStringList MainWindow::realSymbolsFrom(const QStringList& list) const {
+    QStringList out; out.reserve(list.size());
+    for (const auto& s : list) if (!isPseudo(s)) out << s;
+    return out;
+}
+
+void MainWindow::recomputePseudoTickers() {
+    const auto now = QDateTime::currentMSecsSinceEpoch()/1000.0;
+    // Pre-collect real normalized values
+    QVector<double> vals; vals.reserve(normalizedBySymbol.size());
+    for (auto it = normalizedBySymbol.begin(); it != normalizedBySymbol.end(); ++it) vals.push_back(it.value());
+    std::sort(vals.begin(), vals.end());
+    auto computeMedian = [&](){ if (vals.isEmpty()) return 0.0; int n=vals.size(); if (n%2==1) return double(vals[n/2]); else return 0.5*(vals[n/2-1]+vals[n/2]); };
+    auto computeAvg = [&](){ if (vals.isEmpty()) return 0.0; double s=std::accumulate(vals.begin(), vals.end(), 0.0); return s/vals.size(); };
+    auto computeAltAvg = [&](){ QVector<double> v2; v2.reserve(vals.size()); for (auto it = normalizedBySymbol.begin(); it!=normalizedBySymbol.end(); ++it) if (it.key()!="BTC") v2.push_back(it.value()); if (v2.isEmpty()) return 0.0; double s=std::accumulate(v2.begin(), v2.end(), 0.0); return s/v2.size(); };
+    auto computeSpread = [&](){ if (vals.isEmpty()) return 0.0; return vals.last() - vals.first(); };
+
+    for (auto it = widgets.begin(); it != widgets.end(); ++it) {
+        const QString& name = it.key(); auto* w = it.value(); DiffSpec ds; auto kind = classifyPseudo(name, &ds);
+        if (kind == PseudoKind::None) continue;
+        double agg = 0.0;
+        switch (kind) {
+            case PseudoKind::Avg: agg = computeAvg(); w->setMarketBadge("Computed", "AVG"); break;
+            case PseudoKind::AltAvg: agg = computeAltAvg(); w->setMarketBadge("Computed", "ALT_AVG"); break;
+            case PseudoKind::Median: agg = computeMedian(); w->setMarketBadge("Computed", "MEDIAN"); break;
+            case PseudoKind::Spread: agg = computeSpread(); w->setMarketBadge("Computed", "SPREAD"); break;
+            case PseudoKind::Diff: {
+                if (!ds.valid) { agg = 0.0; w->setMarketBadge("Computed", "DIFF"); break; }
+                double b = binancePrice.value(ds.symbol, 0.0);
+                double y = (ds.market==BybitMarket::Linear? bybitLinearPrice.value(ds.symbol, 0.0) : bybitSpotPrice.value(ds.symbol, 0.0));
+                double diffPct = 0.0; if (b>0 && y>0) diffPct = (y - b) / b * 100.0; // percent difference Bybit vs Binance
+                // Map percent diff to 0..100 center at 50 (=0%) with +/- 10% window → 0..100
+                double center=50.0; double scale=5.0; // 10% => 50 +/- 50 → scale=5 (since 10% * 5 = 50)
+                agg = std::clamp(center + diffPct*scale, 0.0, 100.0);
+                w->setMarketBadge("Computed", QString("DIFF %1 • %2").arg(ds.symbol, ds.market==BybitMarket::Linear?"Linear":"Spot"));
+                break;
+            }
+            default: break;
+        }
+        w->applyScaling({DynamicSpeedometerCharts::ScalingMode::Fixed, 0.0, 100.0});
+        w->updateData(agg, now, btcPrice);
+    }
+}
+
+void MainWindow::refreshCompareSubscriptions() {
+    // Build watch lists from currentCurrencies for all @DIFF items
+    QSet<QString> needBinance, needLinear, needSpot;
+    for (const auto& s : currentCurrencies) {
+        DiffSpec ds; if (classifyPseudo(s, &ds) == PseudoKind::Diff && ds.valid) {
+            needBinance.insert(ds.symbol);
+            (ds.market==BybitMarket::Linear ? needLinear : needSpot).insert(ds.symbol);
+        }
+    }
+    if (needBinance.isEmpty() && needLinear.isEmpty() && needSpot.isEmpty()) {
+        if (cmpBinanceThread && cmpBinanceThread->isRunning()) { QMetaObject::invokeMethod(cmpBinance, "stop", Qt::QueuedConnection); cmpBinanceThread->quit(); }
+        if (cmpBybitLinearThread && cmpBybitLinearThread->isRunning()) { QMetaObject::invokeMethod(cmpBybitLinear, "stop", Qt::QueuedConnection); cmpBybitLinearThread->quit(); }
+        if (cmpBybitSpotThread && cmpBybitSpotThread->isRunning()) { QMetaObject::invokeMethod(cmpBybitSpot, "stop", Qt::QueuedConnection); cmpBybitSpotThread->quit(); }
+        return;
+    }
+    // Start threads if needed
+    if (!needBinance.isEmpty()) {
+        if (!cmpBinanceThread->isRunning()) cmpBinanceThread->start();
+        if (cmpSymsBinance != needBinance) { cmpSymsBinance = needBinance; QMetaObject::invokeMethod(cmpBinance, [this,needBinance](){ cmpBinance->setCurrencies(QStringList(needBinance.values())); }, Qt::QueuedConnection); }
+    }
+    if (!needLinear.isEmpty()) {
+        if (!cmpBybitLinearThread->isRunning()) cmpBybitLinearThread->start();
+        if (cmpSymsBybitLinear != needLinear) { cmpSymsBybitLinear = needLinear; QMetaObject::invokeMethod(cmpBybitLinear, [this,needLinear](){ cmpBybitLinear->setCurrencies(QStringList(needLinear.values())); }, Qt::QueuedConnection); }
+    }
+    if (!needSpot.isEmpty()) {
+        if (!cmpBybitSpotThread->isRunning()) cmpBybitSpotThread->start();
+        if (cmpSymsBybitSpot != needSpot) { cmpSymsBybitSpot = needSpot; QMetaObject::invokeMethod(cmpBybitSpot, [this,needSpot](){ cmpBybitSpot->setCurrencies(QStringList(needSpot.values())); }, Qt::QueuedConnection); }
+    }
 }
 
 QStringList MainWindow::readCurrenciesSettings() {

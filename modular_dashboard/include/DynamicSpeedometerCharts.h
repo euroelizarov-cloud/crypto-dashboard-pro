@@ -69,6 +69,7 @@ public:
 signals:
     void valueChanged(double newValue);
     void requestRename(const QString& currentTicker);
+    void requestChangeTicker(const QString& oldName, const QString& newName);
     void styleSelected(const QString& currency, const QString& styleName);
 protected:
     void paintEvent(QPaintEvent*) override;

@@ -27,6 +27,15 @@ This guide covers the most important runtime controls and customization options.
   - Segment Bar: bold segmented arc with gaps, minimal labels.
   - Dual Arc: outer arc for value, inner arc for volatility.
 
+## Computed Widgets
+- Right-click → Computed to insert pseudo tickers without typing:
+  - @AVG — average (0..100) of all real widgets
+  - @ALT_AVG — average excluding BTC
+  - @MEDIAN — median of all real widgets
+  - @SPREAD — range (max − min)
+  - @DIFF:SYMBOL[:Linear|Spot] — Bybit vs Binance percent difference for SYMBOL (centered at 50 = 0%)
+- Computed widgets show badge “Computed • <label>” and use fixed 0..100 scaling.
+
 ## Scaling Modes
 - Settings → Scaling:
   - Adaptive: adjusts to recent data range automatically.
