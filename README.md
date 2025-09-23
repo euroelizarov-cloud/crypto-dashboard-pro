@@ -1,20 +1,20 @@
-# 📊 Crypto Dashboard Pro  
+# 📊 Crypto Dashboard Pro
 [![Latest Release](https://img.shields.io/github/v/release/euroelizarov-cloud/crypto-dashboard-pro?sort=semver&label=latest)](https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/latest)
 
-Modern real-time cryptocurrency dashboard built with Qt6 and C++. Features advanced speedometer-style visualizations with multiple themes and customizable displays.
+Modern real-time cryptocurrency dashboard built with Qt6 (Widgets + Charts + WebSockets) and C++. Version **v0.6.0** introduces transitions, advanced anomaly detection, extended pseudo tickers, technical indicators, dual-arc & segmented styles, and Python-like adaptive scaling.
 
 ## ✨ Features
 
-### 🎛️ **Advanced Speedometer Styles**
-- **Classic** - Traditional speedometer with red needle tip
-- **NeonGlow** - Futuristic neon lighting effects
-- **Minimal** - Clean minimalist design
-- **ModernTicks** - Contemporary tick marks
-- **Classic Pro** - Professional traditional style with detailed markings
-- **Gauge** - Clean gauge with value indicators
-- **Modern Scale** - Contemporary linear-style scale design with segmented progress
-- **Segment Bar** - Bold segmented arc with clean center labels
-- **Dual Arc** - Outer arc shows value, inner arc shows volatility
+### 🎛️ **Advanced Speedometer Styles (9)**
+- Classic — Traditional with colored threshold zones
+- NeonGlow — Futuristic neon glow & radial aura
+- Minimal — Lightweight arcs & needle
+- ModernTicks — Contemporary tick grid
+- Classic Pro — Detailed professional dial
+- Gauge — Simplified gauge variant
+- Modern Scale — Segmented linear-feel arc
+- Segment Bar — Discrete progress segments with gaps
+- Dual Arc — Value + inner volatility arc
 
 ### 🎨 **Rich Color Themes (15+ themes)**
 - **Dark** - Classic dark theme
@@ -27,30 +27,34 @@ Modern real-time cryptocurrency dashboard built with Qt6 and C++. Features advan
 - **Retro** - Vintage orange-brown colors
 - **Minimal White** - Pure white minimalism
 
-### ⚙️ **Smart Auto-Scaling**
-- **Adaptive** - Automatic scaling based on data range
-- **Fixed (0-100)** - Fixed percentage range
-- **Manual** - Custom min/max bounds
-- **Per-widget** - Individual scaling per cryptocurrency
+### ⚙️ **Smart Auto-Scaling Modes**
+- Adaptive — EWMA-like soft tracking of bounds
+- Fixed — Static 0–100 mapping
+- Manual — Sticky bounds expand only if breached
+- Python-like — Gradually compressing dynamic window with minimum width rules (new in v0.6)
+- Per-widget independent scaling & overrides
 
 ### 🔧 **Advanced Features**
-- **Real-time WebSocket** connection to Binance & Bybit APIs
-- **Bybit dual-market fallback** - Linear/Spot auto-fallback per symbol
-- **Provider & market badges** - Visible on each widget
-- **Per-widget customization** - Individual styles and settings
-- **Threshold highlighting** - Color-coded warning zones
-- **Performance monitoring** - Built-in profiling and optimization
-- **Persistent settings** - All customizations saved automatically
-- **Context menus** - Right-click for quick style changes
-- **Memory management** - Configurable cache limits and data retention
-- **Chart options** - Toggle grid and axis labels in chart modes
+- Real-time WebSocket (Binance + Bybit) with resilient reconnect
+- Bybit dual-market fallback (Linear ↔ Spot preference + live badge)
+- Provider & market badges per widget
+- Pseudo / computed tickers (see below) with automatic scaling & badges
+- Technical Indicators: RSI, MACD (12/26/9), Bollinger Bands (20/2)
+- Anomaly Detection Modes (RSI OB/OS, MACD cross, BB breakout, Z-Score, Vol spike, Composite, RSI divergence, MACD histogram surge, Clustered Z-score, Volatility regime shift)
+- Transition animations (Flip, Slide, Crossfade, Zoom+Blur) – toggleable
+- Per‑widget overlays: Volatility %, Change %
+- Threshold highlighting (Warn / Danger)
+- Performance tuning dialog (animation, render/cache cadence, history, raw cache)
+- Persistent settings (QSettings)
+- Context menu power tools (styles, indicators, anomalies, computed insert)
+- Chart options: grid & axis labels toggles
+- Grid presets 1×1 … 7×7 with TOP50 auto-fill
 
 ## 🚀 **Live Data Support**
-- **Top tickers**: BTC, ETH, XRP, BNB, SOL, DOGE, XLM, HBAR, APT, TAO, LAYER, TON (extendable)
-- **Real-time updates** from Binance & Bybit
-- **Trade/Ticker modes** with automatic fallback
-- **Bybit dual-market logic** with per-symbol tracking
-- **Performance metrics** showing update rates
+- Default basket: BTC, XRP, BNB, SOL, DOGE, XLM, HBAR, ETH, APT, TAO, LAYER, TON (auto-extend via TOP50 when enlarging grid)
+- Real-time Trade or Ticker streams (menu selectable)
+- Dual-provider (Binance, Bybit) + per-symbol market resolution
+- Compare workers for @DIFF pseudo tickers (Binance vs Bybit Linear/Spot)
 
 ## 🛠️ **Technical Stack**
 - **Qt6** (Core, GUI, Widgets, WebSockets, Charts)
@@ -82,7 +86,10 @@ Grid presets and auto-fill from TOP50 are managed in `MainWindow`.
 
 ## ⬇️ Download
 
-- macOS app (v0.5.0): https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/download/v0.5.0/modular_dashboard-v0.5.0-macos.zip
+Latest macOS bundle: see the **Releases** page.
+
+Direct link (v0.6.0 once published):
+https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/download/v0.6.0/modular_dashboard-v0.6.0-macos.zip
 
 ## 🔨 **Building**
 
@@ -122,13 +129,21 @@ cmake --build . --target modular_dashboard -j8
 - **Chart options**: Right-click → Chart Options
 
 ### Computed Widgets (Pseudo Tickers)
-- Use special names to show derived metrics instead of a real symbol:
-	- `@AVG` — average of all real widgets (0..100)
-	- `@ALT_AVG` — average excluding BTC
-	- `@MEDIAN` — median of all real widgets
-	- `@SPREAD` — max − min (range)
-	- `@DIFF:SYMBOL[:Linear|Spot]` — percent difference between Bybit (Linear/Spot) and Binance for SYMBOL, centered at 50 (0% diff)
-- Add via Right-click → Computed menu (no typing needed)
+Right-click → Computed to insert without typing.
+
+| Token | Meaning |
+|-------|---------|
+| `@AVG` | Average normalized value of all real tickers |
+| `@ALT_AVG` | Average excluding BTC |
+| `@MEDIAN` | Median normalized value |
+| `@SPREAD` | Range (max − min) mapped to 0..100 |
+| `@TOP10_AVG` | Average of TOP10 symbols (intersection with tracked) |
+| `@VOL_AVG` | Average volatility % mapped to 0..100 (soft clamp) |
+| `@BTC_DOM` | BTC dominance proxy vs basket (capped) |
+| `@Z_SCORE:SYMBOL` | Z-score vs basket distribution mapped to 0..100 |
+| `@DIFF:SYMBOL[:Linear|Spot]` | % diff Bybit (market) vs Binance centered at 50 |
+
+All computed widgets show badge “Computed • <MODE>” and use fixed scaling.
 
 ### Performance Tuning
 - **Animation timing**: Settings → Performance → Animation delays
@@ -156,13 +171,37 @@ cmake --build . --target modular_dashboard -j8
 - **Resource pooling**: Reusable painter objects and brush caching
 
 ## 📈 **Development Timeline**
-- ✅ **Phase 1**: Basic dashboard with Qt Charts integration
-- ✅ **Phase 2**: Custom speedometer visualizations
-- ✅ **Phase 3**: Multiple styles and themes
-- ✅ **Phase 4**: Advanced customization and scaling
-- ✅ **Phase 5**: Provider switching, Bybit dual-market fallback, market badges
-- ✅ **Phase 6**: Grid layouts 1x1…7x7 with TOP50 auto-fill
-- ✅ **Phase 7**: New styles (Segment Bar, Dual Arc), chart grid/labels toggles
+| Phase | Status | Highlights |
+|-------|--------|------------|
+| 1 | ✅ | Core charts + data plumbing |
+| 2 | ✅ | Custom speedometer renderer base |
+| 3 | ✅ | Multi-style + theming system |
+| 4 | ✅ | Scaling modes & thresholds |
+| 5 | ✅ | Provider switch + Bybit dual-market fallback |
+| 6 | ✅ | Grid 1×1..7×7 + TOP50 auto-fill |
+| 7 | ✅ | Segment Bar & Dual Arc styles, chart toggles |
+| 8 | ✅ | Pseudo tickers & compare workers |
+| 9 | ✅ | Technical indicators (RSI, MACD, BB) |
+| 10 | ✅ | Transition animations & anomaly detectors v1 |
+| 11 | ✅ | Advanced anomalies (divergence, histogram surge, clustered Z, regime shift) |
+
+## 🆕 What's New in v0.6.0
+**Enhancements**
+- Transition engine (Flip / Slide / Crossfade / Zoom+Blur) with global enable switch
+- Advanced anomaly modes (RSI divergence, MACD histogram surge, Clustered Z-score, Volatility regime shift)
+- Extended pseudo tickers (@TOP10_AVG, @VOL_AVG, @BTC_DOM, @Z_SCORE:SYMBOL)
+- Per-widget volatility & change overlays
+- Python-like compressing scaling option
+- Stability improvements & guarded transition snapshots
+
+**Refinements**
+- More resilient Bybit Linear/Spot handling
+- Optimized repaint scheduling & history sampling
+- Consistent per-widget persistence of indicators & anomaly settings
+
+**Planned (Next)**
+- Physics overlay (Box2D visual effects)
+- Global policy menu for batch enabling alerts & transitions
 
 ## 🤝 **Contributing**
 This is a personal project showcasing modern Qt development practices. Feel free to explore the code and adapt it for your own projects.

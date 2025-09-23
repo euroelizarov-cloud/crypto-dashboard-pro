@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(modular_dashboard VERSION 0.1 LANGUAGES CXX)
+project(modular_dashboard VERSION 0.6.0 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -17,6 +17,7 @@ set(HEADERS
     include/DynamicSpeedometerCharts.h
     include/Profiler.h
     include/ThemeManager.h
+    include/TransitionOverlay.h
 )
 
 set(SOURCES
@@ -26,6 +27,7 @@ set(SOURCES
     src/DynamicSpeedometerCharts.cpp
     src/Profiler.cpp
     src/ThemeManager.cpp
+    src/TransitionOverlay.cpp
 )
 
 qt_add_executable(modular_dashboard

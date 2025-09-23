@@ -1,56 +1,130 @@
-# Crypto Dashboard Pro — Usage Guide
+# Crypto Dashboard Pro — Usage Guide (v0.6.0)
 
-This guide covers the most important runtime controls and customization options.
+This guide covers runtime controls, transitions, indicators, pseudo tickers, anomaly alerts, and scaling modes introduced up to version 0.6.0.
 
 ## Views
 - Left-click a widget to cycle modes: `speedometer → line_chart → btc_ratio → speedometer`.
 - Right-click a widget to open the context menu.
 
+### Transitions
+Right-click → Transitions
+
+- Enable animations – master switch
+- Types: None | Flip | Slide | Crossfade | Zoom+Blur
+  - Flip: 3D card flip simulation
+  - Slide: horizontal content slide
+  - Crossfade: alpha blend
+  - Zoom+Blur: zoom-out blur of old → fade new
+
+If a transition misbehaves, temporarily set Type = None (debug safety).
+
 ## Grid Layouts (1x1 … 7x7)
-- Menu: View → Grid → choose any layout from 1x1 up to 7x7.
-- Auto-fill (TOP50): When enabled, the grid will populate empty cells with the top tickers list.
-- Reflow: Widgets will reflow automatically when grid size changes.
+- Menu: Settings → Grid (presets or manual rows/cols)
+- Auto-fill: Expanding the grid pulls additional symbols from an internal TOP50 list (no duplicates)
+- Reflow: Layout rebuilds after size changes; per-widget settings persist
 
 ## Provider Switching (Binance / Bybit)
-- Menu: Settings → Provider → Binance / Bybit.
-- Bybit dual-market fallback: The app attempts Linear and Spot connections automatically per symbol and shows the active market badge.
-- Market/Provider badges: Top-right of each widget shows the current provider and market (e.g., `Bybit • Linear`).
+- Settings → Provider → Binance / Bybit
+- Bybit preference (Linear → Spot or Spot → Linear) chooses primary; automatic fallback if unsupported
+- Each widget shows badge: `Provider • Market` or computed mode descriptor
 
 ## Chart Options
 - Right-click → Chart Options:
   - Show grid: toggles the grid lines on charts.
   - Show axis labels: toggles axis labels visibility.
 
-## Speedometer Styles
-- Right-click → Style:
-  - Classic, NeonGlow, Minimal, ModernTicks, Classic Pro, Gauge, Modern Scale
-  - Segment Bar: bold segmented arc with gaps, minimal labels.
-  - Dual Arc: outer arc for value, inner arc for volatility.
+## Speedometer Styles (Right-click → Style)
+Classic | NeonGlow | Minimal | ModernTicks | Classic Pro | Gauge | Modern Scale | Segment Bar | Dual Arc
 
-## Computed Widgets
-- Right-click → Computed to insert pseudo tickers without typing:
-  - @AVG — average (0..100) of all real widgets
-  - @ALT_AVG — average excluding BTC
-  - @MEDIAN — median of all real widgets
-  - @SPREAD — range (max − min)
-  - @DIFF:SYMBOL[:Linear|Spot] — Bybit vs Binance percent difference for SYMBOL (centered at 50 = 0%)
-- Computed widgets show badge “Computed • <label>” and use fixed 0..100 scaling.
+- Segment Bar – segmented progress (2–3% arc segments) with gaps
+- Dual Arc – outer = value, inner = volatility (scaled)
 
-## Scaling Modes
-- Settings → Scaling:
-  - Adaptive: adjusts to recent data range automatically.
-  - Fixed: enforce fixed min/max.
-  - Manual: set custom min/max; expands if price goes outside.
-  - Python-like: compresses window gradually, enforces a minimal width relative to price; expands when price breaks out.
+## Indicators
+Right-click → Indicators
+
+- RSI (14) – overlays separate RSI axis on chart
+- MACD (12,26,9) – MACD and signal lines, own axis
+- Bollinger Bands (20,2) – upper & lower envelope
+
+Indicators persist per widget via settings.
+
+## Anomaly Alerts (Right-click → Аномалии)
+- Показывать значок аномалии – toggles detection badge
+- Modes:
+  - Выкл – off
+  - RSI OB/OS – RSI >=70 or <=30
+  - MACD cross – signal crossover
+  - BB breakout – price beyond bands
+  - Z-Score – |Z| >= 2 over rolling window
+  - Всплеск волатильности – return spike vs median
+  - Композитный – combined (RSI extreme OR MACD cross OR BB breakout)
+  - RSI дивергенция – price higher high + RSI lower high (bearish) / converse (bullish)
+  - MACD histogram surge – absolute histogram jump > ~2.5× recent median
+  - Кластерный Z-Score – average of multiple Z-scores exceeds threshold
+  - Calm↔Volatile смена режима – volatility regime shift (step change)
+
+Badges display compact codes (e.g., RSI↑, MACD↓, BB↑, Z↓, VOL, DIV-, HIST, CZ↑, VOL↑) on the speedometer view.
+
+## Computed / Pseudo Tickers
+Right-click → Computed
+
+| Token | Description |
+|-------|-------------|
+| @AVG | Mean normalized value |
+| @ALT_AVG | Mean excluding BTC |
+| @MEDIAN | Median normalized value |
+| @SPREAD | Range (max−min) normalized |
+| @TOP10_AVG | Mean over TOP10 set |
+| @VOL_AVG | Average volatility mapped 0..100 |
+| @BTC_DOM | BTC dominance proxy (capped) |
+| @Z_SCORE:SYMBOL | Symbol Z vs basket (-> 0..100 with 50 mid) |
+| @DIFF:SYMBOL[:Linear|Spot] | % diff Bybit vs Binance centered at 50 |
+
+All computed tickers use fixed 0..100 scaling & show badge `Computed • MODE`.
+
+## Scaling Modes (Settings → Auto-scaling)
+- Adaptive – drifting bounds (EWMA style) (default)
+- Fixed – static 0..100 range
+- Manual – user-defined sticky bounds (expand only on breach)
+- Python-like – compress bounds each update, enforce minimal width, expand on breakout
+
+Per-widget scaling: pseudo tickers automatically force Fixed 0..100.
 
 ## Thresholds
 - Settings → Thresholds: Enable and set Warn/Danger levels. Gauges colorize accordingly.
 
 ## Performance Tuning
-- Settings → Performance: Adjust animation duration, render/cache intervals, history size, and raw cache limit.
+Settings → Performance
+
+Parameters:
+- Animation (ms)
+- Render interval (UI refresh cadence)
+- Cache update (chart data recache)
+- Volatility window size
+- Max chart points (sampling cap)
+- Raw cache size (history retention)
+- Python-like scaling parameters (init span, compression factors, min width)
+
+## Overlays
+Right-click:
+- Show volatility overlay – displays rolling volatility
+- Show change overlay – displays recent % change
 
 ## Tips
-- Use Minimal or Gauge styles for the cleanest look.
-- Use Segment Bar when you want strong progress indication without needles.
-- Dual Arc is helpful to correlate current value with volatility.
-- For charts, hide grid and labels for a distraction-free canvas.
+- Minimal / Gauge for dense grids
+- Segment Bar for dashboard / TV displays
+- Dual Arc to visually pair momentum + volatility
+- Turn off grid & axis labels for cinematic charts
+
+## Troubleshooting
+| Issue | Action |
+|-------|--------|
+| Transition flicker | Disable animations, re-enable after restart |
+| No data for a symbol | Check provider selection & Bybit market preference |
+| Computed widget static | Ensure at least one real symbol updates |
+| High CPU | Increase render interval or reduce max points |
+
+## Upcoming
+- Global policy menu (batch anomaly/indicator toggles)
+- Physics overlay (Box2D visual effects)
+- Export/import settings profile
