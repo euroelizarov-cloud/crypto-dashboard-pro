@@ -54,6 +54,15 @@ void DataWorker::stop() {
     if (webSocket) {
         webSocket->abort(); webSocket->deleteLater(); webSocket = nullptr;
     }
+    // Ensure alternate Bybit socket is also torn down (if created)
+    if (bybitAlt) {
+        bybitAlt->abort();
+        bybitAlt->deleteLater();
+        bybitAlt = nullptr;
+    }
+    // Optionally drop timers to avoid residual callbacks during app shutdown
+    if (pingTimer) { pingTimer->stop(); pingTimer->deleteLater(); pingTimer = nullptr; }
+    if (watchdogTimer) { watchdogTimer->stop(); watchdogTimer->deleteLater(); watchdogTimer = nullptr; }
 }
 
 void DataWorker::setCurrencies(const QStringList& list) {
@@ -119,13 +128,14 @@ void DataWorker::processMessage(const QString& message) {
         // don't return; allow further parsing if data present, but most acks have no data
     }
     double price=0.0, timestamp=0.0; QString currency;
+    double volBase=0.0, volQuote=0.0, volIncr=0.0;
     if (provider == DataProvider::Bybit) { static int rawDbg = 0; if (rawDbg < 10) { qDebug() << "Bybit raw topic/type:" << root.value("topic").toString() << root.value("type").toString(); qDebug() << "Bybit raw:" << message.left(500); rawDbg++; } }
     if (provider == DataProvider::Binance) {
-        if (!root.contains("data")) return; QJsonObject data = root["data"].toObject(); QString symbol = data.value("s").toString(); if (symbol.isEmpty()) return; currency = symbol.left(symbol.length()-4).toUpper(); if (mode==StreamMode::Trade) { price = jsonToDouble(data.value("p")); timestamp = jsonToDouble(data.value("T"))/1000.0; } else { price = jsonToDouble(data.value("c")); timestamp = jsonToDouble(data.value("E"))/1000.0; }
+        if (!root.contains("data")) return; QJsonObject data = root["data"].toObject(); QString symbol = data.value("s").toString(); if (symbol.isEmpty()) return; currency = symbol.left(symbol.length()-4).toUpper(); if (mode==StreamMode::Trade) { price = jsonToDouble(data.value("p")); timestamp = jsonToDouble(data.value("T"))/1000.0; volIncr = jsonToDouble(data.value("q")); } else { price = jsonToDouble(data.value("c")); timestamp = jsonToDouble(data.value("E"))/1000.0; volBase = jsonToDouble(data.value("v")); volQuote = jsonToDouble(data.value("q")); }
     } else {
         QString topic = root.value("topic").toString(); QJsonValue dataVal = root.value("data"); QJsonArray arr; QJsonObject obj; if (dataVal.isArray()) arr = dataVal.toArray(); else if (dataVal.isObject()) obj = dataVal.toObject(); QString symbol;
-        if (!arr.isEmpty()) { QJsonObject e = arr.last().toObject(); symbol = e.value("symbol").toString(); if (symbol.isEmpty()) symbol = e.value("s").toString(); if (mode==StreamMode::Trade) { price = jsonToDouble(e.value("p")); timestamp = jsonToDouble(e.value("T"))/1000.0; } else { price = e.contains("lastPrice") ? jsonToDouble(e.value("lastPrice")) : jsonToDouble(e.value("lp")); double tsRoot = jsonToDouble(root.value("ts")); double tsData = jsonToDouble(e.value("ts")); timestamp = ((tsRoot>0? tsRoot : tsData))/1000.0; } }
-        else if (!obj.isEmpty()) { symbol = obj.value("symbol").toString(); if (symbol.isEmpty()) symbol = obj.value("s").toString(); if (mode==StreamMode::Trade) { price = jsonToDouble(obj.value("p")); timestamp = jsonToDouble(obj.value("T"))/1000.0; } else { price = obj.contains("lastPrice") ? jsonToDouble(obj.value("lastPrice")) : jsonToDouble(obj.value("lp")); double tsRoot = jsonToDouble(root.value("ts")); double tsData = jsonToDouble(obj.value("ts")); timestamp = ((tsRoot>0? tsRoot : tsData))/1000.0; } }
+    if (!arr.isEmpty()) { QJsonObject e = arr.last().toObject(); symbol = e.value("symbol").toString(); if (symbol.isEmpty()) symbol = e.value("s").toString(); if (mode==StreamMode::Trade) { price = jsonToDouble(e.value("p")); timestamp = jsonToDouble(e.value("T"))/1000.0; volIncr = jsonToDouble(e.value("q")); } else { price = e.contains("lastPrice") ? jsonToDouble(e.value("lastPrice")) : jsonToDouble(e.value("lp")); double tsRoot = jsonToDouble(root.value("ts")); double tsData = jsonToDouble(e.value("ts")); timestamp = ((tsRoot>0? tsRoot : tsData))/1000.0; volBase = jsonToDouble(e.value("turnover24h")); volQuote = jsonToDouble(e.value("volume24h")); } }
+    else if (!obj.isEmpty()) { symbol = obj.value("symbol").toString(); if (symbol.isEmpty()) symbol = obj.value("s").toString(); if (mode==StreamMode::Trade) { price = jsonToDouble(obj.value("p")); timestamp = jsonToDouble(obj.value("T"))/1000.0; volIncr = jsonToDouble(obj.value("q")); } else { price = obj.contains("lastPrice") ? jsonToDouble(obj.value("lastPrice")) : jsonToDouble(obj.value("lp")); double tsRoot = jsonToDouble(root.value("ts")); double tsData = jsonToDouble(obj.value("ts")); timestamp = ((tsRoot>0? tsRoot : tsData))/1000.0; volBase = jsonToDouble(obj.value("turnover24h")); volQuote = jsonToDouble(obj.value("volume24h")); } }
         if (symbol.isEmpty() && !topic.isEmpty()) { auto parts = topic.split('.'); if (parts.size()>=2) symbol = parts.last(); }
         if (symbol.isEmpty()) return; currency = symbol.left(symbol.length()-4).toUpper();
     }
@@ -135,6 +145,7 @@ void DataWorker::processMessage(const QString& message) {
     double now = QDateTime::currentMSecsSinceEpoch()/1000.0; if (now - last_report_time >= 10) { double interval = now - last_report_time; const auto list = subscribedCurrencies; for (const QString& cur : list) { qDebug() << QString("  %1: %2 msg/s").arg(cur).arg(msg_counter[cur]/interval,0,'f',2); msg_counter[cur]=0; } last_report_time = now; }
     lastMsgMs = nowMs();
     emit dataUpdated(currency, price, timestamp);
+    emit volumeTick(currency, volBase, volQuote, volIncr, timestamp);
     // market tag: if topic contains tickers.* from Spot fallback, label Spot; otherwise Linear for Bybit; Binance as-is
     QString providerName = (provider==DataProvider::Binance) ? "Binance" : "Bybit";
     QString marketName = "";

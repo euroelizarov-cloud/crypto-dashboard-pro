@@ -1,6 +1,21 @@
 # Crypto Dashboard Pro — Usage Guide (v0.6.0)
 
-This guide covers runtime controls, transitions, indicators, pseudo tickers, anomaly alerts, and scaling modes introduced up to version 0.6.0.
+This guide covers runtime controls, transitions, indicators, pseudo tickers, anomaly alerts, scaling & sensitivity, history, and compare charts up to version 1.1.2.
+
+## New in 1.1.2
+- History menu (“История”): Save/Load/Clear, backend (JSONL/SQLite), auto-save interval, optional auto-load on startup
+- Compare chart: time axis, adaptive ticks, left-click tooltip for nearest series and price
+- Intervals: 30m/1h/2h/4h/12h/24h/48h; Auto step for performance
+- Sensitivity (per-widget): needle gain, auto-collapse, spike expand, minimum window width
+
+### Sensitivity Menu (per widget)
+Right-click a speedometer → “Чувствительность”
+- Needle Gain: 1x/1.5x/2x/3x/5x — boosts reaction near mid-scale
+- Auto-collapse: enable and set speed (Soft/Normal/Fast) — shrinks window around current price
+- Spike expand: enable and set threshold (0.4/0.8/1.5/3%) — temporary widen on spikes
+- Min window width: guard to avoid over-collapse (0.05–1.0%)
+
+All settings persist per widget via QSettings.
 
 ## Views
 - Left-click a widget to cycle modes: `speedometer → line_chart → btc_ratio → speedometer`.

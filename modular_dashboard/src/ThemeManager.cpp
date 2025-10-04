@@ -67,13 +67,11 @@ ThemeManager::ThemeManager(QObject* parent) : QObject(parent) {
     // Use variations for the remaining themes with proper SpeedometerColors constructor
     SpeedometerColors solarizedDark = {QColor(0,43,54), QColor(88,110,117), QColor(147,161,161), QColor(133,153,0), QColor(181,137,0), QColor(220,50,47), QColor(147,161,161), QColor(42,161,152)};
     SpeedometerColors solarizedLight = {QColor(253,246,227), QColor(147,161,161), QColor(101,123,131), QColor(133,153,0), QColor(181,137,0), QColor(220,50,47), QColor(101,123,131), QColor(38,139,210)};
-    SpeedometerColors oceanic = {QColor(27,43,52), QColor(79,91,102), QColor(192,197,206), QColor(153,199,168), QColor(250,200,99), QColor(236,95,103), QColor(192,197,206), QColor(102,153,204)};
     SpeedometerColors gruvbox = {QColor(40,40,40), QColor(124,111,100), QColor(235,219,178), QColor(184,187,38), QColor(250,189,47), QColor(251,73,52), QColor(235,219,178), QColor(254,128,25)};
     SpeedometerColors highContrast = {QColor(0,0,0), QColor(128,128,128), QColor(255,255,255), QColor(0,255,0), QColor(255,255,0), QColor(255,0,0), QColor(255,255,255), QColor(255,0,87)};
     
     add({"Solarized Dark", "QWidget { background: #002b36; color: #93a1a1; }", QColor(0x00,0x2B,0x36), QColor(0x93,0xA1,0xA1), QColor(0xB5,0x89,0x00), QColor(50,80,90), solarizedDark});
     add({"Solarized Light", "QWidget { background: #fdf6e3; color: #657b83; }", QColor(0xFD,0xF6,0xE3), QColor(0x65,0x7B,0x83), QColor(0x26,0x8B,0xD2), QColor(180,160,120), solarizedLight});
-    add({"Oceanic", "QWidget { background: #1B2B34; color: #C0C5CE; }", QColor(0x1B,0x2B,0x34), QColor(0xC0,0xC5,0xCE), QColor(0x99,0xC7,0xA8), QColor(70,90,100), oceanic});
     add({"Gruvbox Dark", "QWidget { background: #282828; color: #ebdbb2; }", QColor(0x28,0x28,0x28), QColor(0xEB,0xDB,0xB2), QColor(0xFE,0x80,0x19), QColor(90,80,60), gruvbox});
     add({"High Contrast", "QWidget { background: #000000; color: #FFFFFF; }", QColor(0x00,0x00,0x00), QColor(0xFF,0xFF,0xFF), QColor(0xFF,0x00,0x57), QColor(120,120,120), highContrast});
     
@@ -84,14 +82,32 @@ ThemeManager::ThemeManager(QObject* parent) : QObject(parent) {
     SpeedometerColors cyberpunk = {QColor(16,0,43), QColor(138,43,226), QColor(255,20,147), QColor(0,255,127), QColor(255,215,0), QColor(255,69,0), QColor(255,20,147), QColor(148,0,211)};
     add({"Cyberpunk", "QWidget { background: #10002b; color: #ff1493; }", QColor(0x10,0x00,0x2B), QColor(0xFF,0x14,0x93), QColor(0x94,0x00,0xD3), QColor(80,0,120), cyberpunk});
     
-    SpeedometerColors pastel = {QColor(253,251,247), QColor(187,154,247), QColor(101,143,185), QColor(152,195,121), QColor(229,192,123), QColor(224,108,117), QColor(86,82,110), QColor(198,160,246)};
-    add({"Pastel", "QWidget { background: #fdfbf7; color: #56526e; }", QColor(0xFD,0xFB,0xF7), QColor(0x56,0x52,0x6E), QColor(0xC6,0xA0,0xF6), QColor(200,180,220), pastel});
+    // Removed old "Pastel", "Oceanic", and "Minimal White"; replacing with KiloCode collection below
     
     SpeedometerColors retro = {QColor(43,45,66), QColor(141,161,99), QColor(238,238,238), QColor(184,187,38), QColor(254,128,25), QColor(204,36,29), QColor(238,238,238), QColor(152,151,26)};
     add({"Retro", "QWidget { background: #2b2d42; color: #eee; }", QColor(0x2B,0x2D,0x42), QColor(0xEE,0xEE,0xEE), QColor(0x98,0x97,0x1A), QColor(90,100,110), retro});
     
-    SpeedometerColors minimalWhite = {QColor(248,249,250), QColor(206,212,218), QColor(52,58,64), QColor(40,167,69), QColor(255,193,7), QColor(220,53,69), QColor(52,58,64), QColor(108,117,125)};
-    add({"Minimal White", "QWidget { background: #f8f9fa; color: #343a40; }", QColor(0xF8,0xF9,0xFA), QColor(0x34,0x3A,0x40), QColor(0x6C,0x75,0x7D), QColor(220,220,225), minimalWhite});
+    // ----- KiloCode Signature Themes (7) -----
+    SpeedometerColors kcAbyss = {QColor(10,10,16), QColor(30,38,51), QColor(0,245,255), QColor(0,160,160), QColor(0,208,208), QColor(0,245,255), QColor(230,247,255), QColor(0,245,255)};
+    add({"KiloCode Abyss", "QWidget { background: #0A0A10; color: #E6F7FF; }", QColor(0x0A,0x0A,0x10), QColor(0xE6,0xF7,0xFF), QColor(0x00,0xF5,0xFF), QColor(34,48,64), kcAbyss});
+
+    SpeedometerColors kcAurora = {QColor(14,14,24), QColor(70,80,120), QColor(180,220,255), QColor(95,200,170), QColor(255,190,120), QColor(247,118,142), QColor(210,220,255), QColor(125,207,255)};
+    add({"KiloCode Aurora", "QWidget { background: #0E0E18; color: #D2DCFF; }", QColor(0x0E,0x0E,0x18), QColor(0xD2,0xDC,0xFF), QColor(0x7D,0xCF,0xFF), QColor(60,70,110), kcAurora});
+
+    SpeedometerColors kcNeonMint = {QColor(12,18,16), QColor(40,70,60), QColor(180,255,220), QColor(80,220,170), QColor(255,210,90), QColor(255,95,110), QColor(220,255,235), QColor(90,255,210)};
+    add({"KiloCode NeonMint", "QWidget { background: #0C1210; color: #DCFFEB; }", QColor(0x0C,0x12,0x10), QColor(0xDC,0xFF,0xEB), QColor(0x5A,0xFF,0xD2), QColor(50,80,70), kcNeonMint});
+
+    SpeedometerColors kcSunset = {QColor(18,12,16), QColor(120,70,90), QColor(255,210,160), QColor(252,92,101), QColor(255,177,66), QColor(255,75,43), QColor(255,220,200), QColor(255,136,102)};
+    add({"KiloCode Sunset", "QWidget { background: #120C10; color: #FFDCC8; }", QColor(0x12,0x0C,0x10), QColor(0xFF,0xDC,0xC8), QColor(0xFF,0x88,0x66), QColor(90,50,60), kcSunset});
+
+    SpeedometerColors kcGraphite = {QColor(12,12,14), QColor(90,90,100), QColor(220,220,230), QColor(120,200,160), QColor(240,200,110), QColor(230,110,110), QColor(230,230,240), QColor(140,200,255)};
+    add({"KiloCode Graphite", "QWidget { background: #0C0C0E; color: #E6E6F0; }", QColor(0x0C,0x0C,0x0E), QColor(0xE6,0xE6,0xF0), QColor(0x8C,0xC8,0xFF), QColor(70,70,80), kcGraphite});
+
+    SpeedometerColors kcDeepOcean = {QColor(8,14,22), QColor(60,80,105), QColor(190,210,230), QColor(0,155,200), QColor(0,195,230), QColor(255,115,120), QColor(200,220,240), QColor(0,200,255)};
+    add({"KiloCode DeepOcean", "QWidget { background: #080E16; color: #C8D6E4; }", QColor(0x08,0x0E,0x16), QColor(0xC8,0xD6,0xE4), QColor(0x00,0xC8,0xFF), QColor(40,60,88), kcDeepOcean});
+
+    SpeedometerColors kcSolarCyan = {QColor(14,16,18), QColor(90,110,120), QColor(0,245,255), QColor(0,160,180), QColor(0,200,210), QColor(255,95,110), QColor(220,240,255), QColor(0,245,255)};
+    add({"KiloCode SolarCyan", "QWidget { background: #0E1012; color: #DCEFFF; }", QColor(0x0E,0x10,0x12), QColor(0xDC,0xEF,0xFF), QColor(0x00,0xF5,0xFF), QColor(70,90,100), kcSolarCyan});
     currentName = "Dark";
 }
 

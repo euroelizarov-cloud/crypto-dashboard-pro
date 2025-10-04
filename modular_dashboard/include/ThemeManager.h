@@ -28,13 +28,11 @@ public:
         Orange = 5,
         Red = 6,
         Cyber = 7,
-        Ocean = 8,
-        Forest = 9,
-        TokyoNight = 10,
-        Cyberpunk = 11,
-        Pastel = 12,
-        Retro = 13,
-        MinimalWhite = 14
+    Ocean = 8,
+    Forest = 9,
+    TokyoNight = 10,
+    Cyberpunk = 11,
+    Retro = 12
     };
 
     ThemeManager(QObject* parent = nullptr);

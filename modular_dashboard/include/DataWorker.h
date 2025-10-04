@@ -30,6 +30,8 @@ signals:
     void workerError(const QString& errorString);
     // New: enriched tick with provider/market for UI badges
     void dataTick(const QString& currency, double price, double timestamp, const QString& providerName, const QString& marketName);
+    // New: volume information; volBase/volQuote are typically 24h volumes for ticker mode; volIncrement is per-trade size for trade mode
+    void volumeTick(const QString& currency, double volBase, double volQuote, double volIncrement, double timestamp);
     void unsupportedSymbol(const QString& currency, const QString& reason);
 private slots:
     void onConnected();

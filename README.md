@@ -1,7 +1,7 @@
 # 📊 Crypto Dashboard Pro
 [![Latest Release](https://img.shields.io/github/v/release/euroelizarov-cloud/crypto-dashboard-pro?sort=semver&label=latest)](https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/latest)
 
-Modern real-time cryptocurrency dashboard built with Qt6 (Widgets + Charts + WebSockets) and C++. Version **v0.6.0** introduces transitions, advanced anomaly detection, extended pseudo tickers, technical indicators, dual-arc & segmented styles, and Python-like adaptive scaling.
+Modern real-time cryptocurrency dashboard built with Qt6 (Widgets + Charts + WebSockets) and C++. Version **v1.1.2** adds history persistence (JSONL/SQLite), time-aligned compare charts, interactive tooltips, performance-friendly auto resampling, and a powerful per-widget Sensitivity system (needle gain + auto-collapse).
 
 ## ✨ Features
 
@@ -27,11 +27,16 @@ Modern real-time cryptocurrency dashboard built with Qt6 (Widgets + Charts + Web
 - **Retro** - Vintage orange-brown colors
 - **Minimal White** - Pure white minimalism
 
-### ⚙️ **Smart Auto-Scaling Modes**
+### ⚙️ **Smart Auto-Scaling & Sensitivity**
 - Adaptive — EWMA-like soft tracking of bounds
 - Fixed — Static 0–100 mapping
 - Manual — Sticky bounds expand only if breached
-- Python-like — Gradually compressing dynamic window with minimum width rules (new in v0.6)
+- Python-like — Gradually compressing dynamic window with minimum width rules
+- Sensitivity (new in v1.1.2):
+	- Needle gain: 1x/1.5x/2x/3x/5x for more responsive needles
+	- Auto-collapse: window auto-shrinks around current price with speed presets
+	- Spike expand: instant window expansion on price spikes to avoid clipping
+	- Minimum window width: guard against over-collapse (per-widget)
 - Per-widget independent scaling & overrides
 
 ### 🔧 **Advanced Features**
@@ -48,6 +53,9 @@ Modern real-time cryptocurrency dashboard built with Qt6 (Widgets + Charts + Web
 - Persistent settings (QSettings)
 - Context menu power tools (styles, indicators, anomalies, computed insert)
 - Chart options: grid & axis labels toggles
+- History persistence (new): Save/Load/Clear history via JSONL or SQLite, auto-save timer, optional auto-load on startup
+- Compare chart (new): Time axis, adaptive ticks & format, left-click tooltip with nearest series & price at time
+- Intervals (new): 30m/1h/2h/4h/12h/24h/48h + Auto step to cap points/series (~≤2500)
 - Grid presets 1×1 … 7×7 with TOP50 auto-fill
 
 ## 🚀 **Live Data Support**
@@ -88,8 +96,8 @@ Grid presets and auto-fill from TOP50 are managed in `MainWindow`.
 
 Latest macOS bundle: see the **Releases** page.
 
-Direct link (v0.6.0 once published):
-https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/download/v0.6.0/modular_dashboard-v0.6.0-macos.zip
+Direct link (v1.1.2):
+https://github.com/euroelizarov-cloud/crypto-dashboard-pro/releases/download/v1.1.2/crypto-dashboard-pro-v1.1.2-macos.zip
 
 ## 🔨 **Building**
 
@@ -185,23 +193,18 @@ All computed widgets show badge “Computed • <MODE>” and use fixed scaling.
 | 10 | ✅ | Transition animations & anomaly detectors v1 |
 | 11 | ✅ | Advanced anomalies (divergence, histogram surge, clustered Z, regime shift) |
 
-## 🆕 What's New in v0.6.0
-**Enhancements**
-- Transition engine (Flip / Slide / Crossfade / Zoom+Blur) with global enable switch
-- Advanced anomaly modes (RSI divergence, MACD histogram surge, Clustered Z-score, Volatility regime shift)
-- Extended pseudo tickers (@TOP10_AVG, @VOL_AVG, @BTC_DOM, @Z_SCORE:SYMBOL)
-- Per-widget volatility & change overlays
-- Python-like compressing scaling option
-- Stability improvements & guarded transition snapshots
+## 🆕 What's New in v1.1.2
+Enhancements
+- History persistence with JSONL/SQLite backends; UI “История”: Save/Load/Clear, backend toggle, auto-save
+- Time-based compare chart (QDateTimeAxis), adaptive tick count and label formats
+- Left-click tooltip on compare: nearest series at cursor time with symbol/price
+- Intervals: 30m/1h/2h/4h/12h/24h/48h and “Auto” resampling step to keep charts snappy
+- Per-widget Sensitivity: needle gain, auto-collapse window, spike expand, minimum window width
 
-**Refinements**
-- More resilient Bybit Linear/Spot handling
-- Optimized repaint scheduling & history sampling
-- Consistent per-widget persistence of indicators & anomaly settings
-
-**Planned (Next)**
-- Physics overlay (Box2D visual effects)
-- Global policy menu for batch enabling alerts & transitions
+Fixes & Polishing
+- Duplicate axis labels in compare fixed via persistent axes and series cleanup
+- Adaptive resampling to cap points/series and reduce memory/CPU usage
+- Console logging for history ops (save/load/clear)
 
 ## 🤝 **Contributing**
 This is a personal project showcasing modern Qt development practices. Feel free to explore the code and adapt it for your own projects.
