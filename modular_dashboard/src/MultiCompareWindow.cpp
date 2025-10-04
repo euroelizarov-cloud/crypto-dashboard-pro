@@ -233,8 +233,8 @@ void MultiCompareWindow::refreshChart() {
     // Remember raw resampled for hit testing (x=ms, y=price)
     m_lastResampledRaw[sym] = pts;
         QLineSeries* s = new QLineSeries(); s->setName(sym);
-        // Color from theme palette
-        auto palette = currentPalette(); s->setColor(palette[(colorIdx++)%palette.size()]);
+        // Deterministic color from ticker letters (first 3 chars -> RGB)
+        s->setColor(colorForSymbol(sym));
         QPen pen = s->pen(); pen.setWidthF(lineW); pen.setCosmetic(true); s->setPen(pen);
         double prev = 0.0; bool havePrev=false; double alpha = 0.2;
         const Stat st = stats.value(sym);
@@ -320,6 +320,38 @@ void MultiCompareWindow::applyThemeStyling(QAbstractAxis* axX, QValueAxis* axY) 
     axX->setLabelsColor(text); axY->setLabelsColor(text);
     axX->setTitleBrush(QBrush(text)); axY->setTitleBrush(QBrush(text));
     chart->legend()->setLabelColor(text);
+}
+
+QColor MultiCompareWindow::colorForSymbol(const QString& symbol) const {
+    // Map first three characters to RGB channels, letter-based.
+    // - A..Z -> 10..245 mapped into 0..255 (spread)
+    // - digits 0..9 -> 25..250
+    // - others -> 128
+    auto to255 = [](QChar ch){
+        if (ch.isLetter()) {
+            int idx = ch.toUpper().unicode() - 'A';
+            idx = std::clamp(idx, 0, 25);
+            return int(10 + (idx * 235) / 25); // 10..245
+        }
+        if (ch.isDigit()) {
+            int d = ch.unicode() - '0';
+            d = std::clamp(d, 0, 9);
+            return int(25 + (d * 225) / 9); // 25..250
+        }
+        return 128; // fallback neutral
+    };
+    QChar c1 = symbol.size() > 0 ? symbol.at(0) : QChar('X');
+    QChar c2 = symbol.size() > 1 ? symbol.at(1) : QChar('X');
+    QChar c3 = symbol.size() > 2 ? symbol.at(2) : QChar('X');
+    int r = to255(c1);
+    int g = to255(c2);
+    int b = to255(c3);
+    // For dark/contrast themes, slightly boost brightness to maintain contrast
+    if (cmbTheme && cmbTheme->currentIndex() != 0) {
+        auto brighten = [](int v){ return std::clamp(int(v * 1.08), 0, 255); };
+        r = brighten(r); g = brighten(g); b = brighten(b);
+    }
+    return QColor(r, g, b);
 }
 
 void MultiCompareWindow::ensureAxes() {

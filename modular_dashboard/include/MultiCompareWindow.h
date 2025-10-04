@@ -35,6 +35,7 @@ private:
     static double emaSmooth(double prev, double cur, double alpha) { return prev*(1.0-alpha) + cur*alpha; }
     QVector<QColor> currentPalette() const;
     void applyThemeStyling(QAbstractAxis* axX, QValueAxis* axY);
+    QColor colorForSymbol(const QString& symbol) const; // deterministic RGB from first three letters
     // Axes management
     QDateTimeAxis* m_axisXTime = nullptr;
     QValueAxis* m_axisY = nullptr;
